@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Eye tracking only records which mirror you looked at (design S22: never affects the score). Runtime permission. -->
+    <uses-permission android:name="com.picovr.permission.EYE_TRACKING" />
+    <!-- No camera, microphone, location, spatial awareness or network (design container.permissions). -->
+
+    <application
+        android:name=".platform.SpatialApplication"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.YardDriveTheme"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".platform.LaunchActivity"
+            android:exported="true"
+            android:theme="@style/Theme.YardDriveTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- DefaultStage: Full ("3": only virtual content). You open the app in the exam car's driver seat (design STAGE_FULL). -->
+            <meta-data
+                android:name="pico.spatial.stage.id"
+                android:value="YardDriveStage" />
+            <meta-data
+                android:name="pico.spatial.stage.style"
+                android:value="3" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion"
+                android:value="100" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion_min"
+                android:value="100" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion_max"
+                android:value="100" />
+        </activity>
+
+        <meta-data android:name="icon.3d.list" android:resource="@array/icon_3d_list" />
+        <meta-data android:name="icon.sdf.list" android:resource="@array/icon_sdf_list" />
+    </application>
+
+</manifest>
