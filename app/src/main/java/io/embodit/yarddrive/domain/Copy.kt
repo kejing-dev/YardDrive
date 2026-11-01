@@ -264,7 +264,7 @@ object Copy {
     val inputs = listOf(t("手柄", "Controllers"), t("手势", "Hands"))
     val handThrottle = t("手势油门", "Hand throttle")
     val handThrottleSub = t("仅手势模式", "Hand mode only")
-    val throttles = listOf(t("走 / 停 点按", "Tap Go"), t("左手捏合保持", "Hold pinch"))
+    val throttles = listOf(t("点按走 / 停", "Tap Go"), t("左手捏合", "Hold pinch"))
     val gazeDot = t("显示目光", "Show gaze dot")
     val gazeDotSub = t("点位库里自动开", "On in look-point library")
     val volume = t("主音量", "Master volume")

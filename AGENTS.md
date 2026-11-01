@@ -99,7 +99,7 @@ and points the debug head the same way, so mirrors / side windows come in front 
 | S04 | `goto S04 lp=2` + `view -45` (left mirror lit, line under the shell); `lp=3` + `view 60`; `lp=6`; `goto S04 lp=2 seat=high` |
 | S05 | `goto S05 lesson=3 t=6`; `goto S05 lesson=6 t=20 top=1` (top view only) |
 | S06 | `goto S06 seg=1`; `goto S06 seg=2` (in the bay, P2 up at +1°) |
-| S07 | `goto S07 seg=1 pose=2.0,-0.5,45 steer=540` (+ `view 60` for the right mirror); `hint 0` / `topview 0` variants; `goto S07 seg=2 gear=D pose=0.04,0.95,90` |
+| S07 | `goto S07 seg=1 lp=3` (LP3 truth pose, full lock; + `view 60` for the right mirror); `hint 0` / `topview 0` variants; `goto S07 seg=2 gear=D pose=0.04,0.95,90` |
 | S08 | `goto S08 t=1.5`; `goto S08 t=2.5 rules=exam` (red −5) |
 | S09 | `goto S09 lesson=6` |
 | S10 | `goto S10 line=bay-right`; `goto S10 line=bay-left lesson=6` |

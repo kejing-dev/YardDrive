@@ -62,6 +62,7 @@ data class RunView(
     val laneSawLock: Boolean = false,
     val laneSawCentre: Boolean = false,
     val advice: Predictor.Advice? = null,
+    val nose: Double? = null,
 )
 
 data class FreeInfo(val run: Int, val of: Int, val difficulty: Int, val seed: Int)

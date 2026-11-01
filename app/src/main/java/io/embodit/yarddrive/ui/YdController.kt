@@ -893,7 +893,7 @@ object YdController {
                     gapL = r.cornerGap[SegId.III] ?: pr?.hold?.gapCorner?.takeIf { seg == SegId.III && pr.seg == seg && it < 8 },
                     gapR = r.cornerGap[SegId.I]?.let { g -> if (seg == SegId.I && pr != null && pr.seg == seg) minOf(g, pr.hold.gapCorner) else g } ?: pr?.hold?.gapCorner?.takeIf { seg == SegId.I && pr.seg == seg && it < 8 },
                     touchPart = touch?.part?.let { t -> Tr(t.zh, t.en) }, touchLine = touch?.line?.let { t -> Tr(t.zh, t.en) }, reason = r.reason?.let { t -> Tr(t.zh, t.en) }, lineOutcome = r.lineOutcome,
-                    free = free, goOn = r.sim.go, lane = r.cfg.lane, laneSawLock = r.sawLock, laneSawCentre = r.sawCentre, advice = pr?.advice,
+                    free = free, goOn = r.sim.go, lane = r.cfg.lane, laneSawLock = r.sawLock, laneSawCentre = r.sawCentre, advice = pr?.advice, nose = r.nose[seg],
                 ),
             )
         }

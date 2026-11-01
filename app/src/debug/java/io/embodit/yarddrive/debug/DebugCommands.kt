@@ -224,8 +224,9 @@ object DebugCommands {
                     c.debugAdvance(0.5)
                     r.frozen = true
                 } else {
-                    val p = pose(kv) ?: if (id == "S27") Pose(r.cfg.start.x - 3.0, r.cfg.start.z, 0.0) else null
-                    if (p != null) r.place(p, kv["steer"]?.toDouble() ?: 0.0) else kv["steer"]?.let { r.handWheel(it.toDouble()) }
+                    val lp = kv["lp"]?.let { LookPoints.byN(it.toInt()) }
+                    val p = lp?.pose ?: pose(kv) ?: if (id == "S27") Pose(r.cfg.start.x - 3.0, r.cfg.start.z, 0.0) else null
+                    if (p != null) r.place(p, lp?.wheel ?: kv["steer"]?.toDouble() ?: 0.0) else kv["steer"]?.let { r.handWheel(it.toDouble()) }
                     val t = kv["t"]?.toDouble() ?: 0.0
                     val exam = r.cfg.rules == Rules.EXAM
                     when (id) {
@@ -268,7 +269,7 @@ object DebugCommands {
             }
             "S15" -> c.debugFree(kv["seed"]?.toInt() ?: 42, kv["diff"]?.toInt() ?: 3)
             "S16" -> { if (kv["seed-scores"] == "1") c.debugSeedScores(); ev(YdEvent.Home); ev(YdEvent.OpenScorecard) }
-            "S17" -> { ev(YdEvent.Home); ev(YdEvent.OpenSettings); kv["page"]?.let { ev(YdEvent.SettingsPage(it.toInt())) }; if (kv["confirm"] == "exit") ev(YdEvent.AskExit); if (kv["about"] == "1") ev(YdEvent.About) }
+            "S17" -> { ev(YdEvent.Home); ev(YdEvent.OpenSettings); ev(YdEvent.SettingsPage(0)); kv["page"]?.let { ev(YdEvent.SettingsPage(it.toInt())) }; if (kv["confirm"] == "exit") ev(YdEvent.AskExit); if (kv["about"] == "1") ev(YdEvent.About) }
             "S18" -> { startRunFor(kv); c.debugRun().shift(Gear.R); ev(YdEvent.Pause) }
             "S20" -> ev(YdEvent.Blocked("debug"))
             "S21" -> ev(YdEvent.SetSettings(c.state.value.settings.copy(zh = false)))

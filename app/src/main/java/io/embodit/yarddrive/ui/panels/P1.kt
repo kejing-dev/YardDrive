@@ -307,7 +307,7 @@ private fun ColumnScope.ResultMain(state: YdUiState, r: ResultView, onEvent: (Yd
         }
         val title = if (r.mockCall) state.t(Copy.mockFail) else if (ok) state.t(Copy.outcomes[Outcome.PASS]!!) else state.t(Copy.outcomes[if (r.outcome == Outcome.PASS) Outcome.OUT else r.outcome]!!)
         Line(title, "outcome", YdType.headline.copy(fontSize = YdType.headline.fontSize * 1.15f), modifier = Modifier.weight(1f))
-        if (r.tour == null && r.lane == null) Line("${r.score}", "score", YdType.score)
+        if (r.tour == null && r.lane == null) Line(if (ok) "${r.score}" else "0", "score", YdType.score)
     }
     when {
         r.tour != null -> Line(state.f(Copy.tourResult, r.tour.first, r.tour.second), "tourLine", YdType.body)
@@ -489,7 +489,7 @@ private fun ColumnScope.SettingsPanel(state: YdUiState, onEvent: (YdEvent) -> Un
     val st = state.settings
     fun put(s: io.embodit.yarddrive.domain.Settings) = onEvent(YdEvent.SetSettings(s))
     TopBar(state.t(Copy.settings), null) {
-        Seg(listOf(state.t(Copy.pagePractice) to (state.settingsPage == 0), state.t(Copy.pageSystem) to (state.settingsPage == 1)), "setPage", 84.dp) { onEvent(YdEvent.SettingsPage(it)) }
+        Seg(listOf(state.t(Copy.pagePractice) to (state.settingsPage == 0), state.t(Copy.pageSystem) to (state.settingsPage == 1)), "setPage", 100.dp) { onEvent(YdEvent.SettingsPage(it)) }
         BackKey(state, onEvent)
     }
     Spacer(Modifier.height(8.dp))

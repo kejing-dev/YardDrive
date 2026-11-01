@@ -144,9 +144,9 @@ internal fun Seg(items: List<Pair<String, Boolean>>, name: String, itemW: Dp, en
                 selected = selected,
                 onClick = { if (enabled) onPick(i) },
                 modifier = Modifier.width(itemW).fillMaxHeight().probe("${name}_$i"),
-                textStyle = YdType.small,
+                textStyle = YdType.label,
                 colors = segColors(),
-                title = { Line(label, "${name}_$i", YdType.small, color = if (selected) YdColors.Ink else PicoTheme.colorScheme.labelPrimary) },
+                title = { Line(label, "${name}_$i", YdType.label, color = if (selected) YdColors.Ink else PicoTheme.colorScheme.labelPrimary) },
             )
         }
     }

@@ -80,7 +80,7 @@ private fun ColumnScope.StateCol(state: YdUiState, onEvent: (YdEvent) -> Unit) {
     val gearWord = if (r.gear == Gear.R) Copy.gearR else Copy.gearD
     val showRing = state.screen == Screen.RUN && r.phase == RunPhase.STOPPED && !r.stepMode && r.stoppedFor > 0.05
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Tag(if (r.gear == Gear.R) "R" else "D", "gear", YdType.gear.copy(lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified), if (r.wrongGear) YdColors.Warn else null)
+        Tag(if (r.gear == Gear.R) "R" else "D", "gear", YdType.gear.copy(lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified), if (r.wrongGear && state.screen == Screen.RUN) YdColors.Warn else null)
         Column(modifier = Modifier.weight(1f)) {
             Line(state.t(gearWord), "gearWord", YdType.label)
             val speed = when {
@@ -182,8 +182,10 @@ private fun ColumnScope.RunCoach(state: YdUiState, segName: String) {
             Line(segName, "segName", YdType.title)
             Tag(if (state.zh) "$segName 搞定" else "${seg?.en?.substringBefore(' ')} done", "cueBig", YdType.cue, YdColors.PassText)
             if (next != null) {
-                val nose = if (seg?.bayIn == true) (if (state.zh) "前沿过线 " else "Nose past the line ") + "· " else ""
-                Line(nose + state.f(Copy.segDone, state.t(Tr(seg!!.zh, seg.en)), state.t(Tr(next.zh, next.en)), next.gear.name), "cueSub", YdType.body, lines = 2)
+                val n = r.nose
+                val noseTxt = if (seg?.bayIn == true && n != null) (if (state.zh) String.format(Locale.US, "前沿离库前线 %.2f m · ", n) else String.format(Locale.US, "Nose %.2f m past the line · ", n)) else ""
+                val nextTxt = if (state.zh) "下一段：${next.zh}，切 ${next.gear.name}" else "next: ${next.en}, shift to ${next.gear.name}"
+                Line(noseTxt + nextTxt, "cueSub", YdType.body, lines = 2)
             }
         }
         RunPhase.LINE -> {
