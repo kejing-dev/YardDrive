@@ -40,11 +40,13 @@ object Car {
     const val STICK_DEAD = 0.15
     const val WHEEL_DEAD = 30.0
 
-    const val SPEED_DEFAULT = 0.8
+    /** User, on the headset 2026-11-05: 0.8 m/s with a 0.3 s start and stop made them dizzy. */
+    const val SPEED_DEFAULT = 0.5
     const val SPEED_MIN = 0.5
     const val SPEED_MAX = 1.2
-    const val ACCEL_S = 0.3
-    const val DECEL_S = 0.2
+    /** Start and stop take this long, along a smooth curve (DriveSim), no jump in the acceleration. */
+    const val ACCEL_S = 1.0
+    const val DECEL_S = 1.0
     const val STEP_M = 0.30
     const val STEP_RAMP_S = 0.15
 

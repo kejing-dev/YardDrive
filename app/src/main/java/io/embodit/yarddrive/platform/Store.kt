@@ -26,7 +26,8 @@ class Store(context: Context) {
             return Settings(
                 zh = o.optBoolean("zh", d.zh),
                 seat = o.optInt("seat", d.seat),
-                speed = o.optDouble("speed", d.speed),
+                // v0.1.6 slowed the default down; a saved 0.8 from an older version is that old default, not a choice
+                speed = if (o.optInt("settingsV", 1) < 2 && o.optDouble("speed", d.speed) == 0.8) d.speed else o.optDouble("speed", d.speed),
                 gap = o.optDouble("gap", d.gap),
                 hints = o.optBoolean("hints", d.hints),
                 topView = o.optBoolean("topView", d.topView),
@@ -35,11 +36,10 @@ class Store(context: Context) {
                 mirrorOut = o.optInt("mirrorOut", d.mirrorOut),
                 mirrorPitch = o.optInt("mirrorPitch", d.mirrorPitch),
                 strict = o.optBoolean("strict", d.strict),
-                coachHand = o.optBoolean("coachHand", d.coachHand),
-                hands = o.optBoolean("hands", d.hands),
-                pinchHold = o.optBoolean("pinchHold", d.pinchHold),
                 gazeDot = o.optBoolean("gazeDot", d.gazeDot),
-                volume = o.optInt("volume", d.volume),
+                master = o.optInt("master", d.master),
+                carVol = o.optInt("carVol", d.carVol),
+                cueVol = o.optInt("cueVol", d.cueVol),
                 muted = o.optBoolean("muted", d.muted),
             )
         }
@@ -47,7 +47,7 @@ class Store(context: Context) {
             val o = JSONObject()
                 .put("zh", s.zh).put("seat", s.seat).put("speed", s.speed).put("gap", s.gap).put("hints", s.hints).put("topView", s.topView)
                 .put("poles", s.poles).put("comfort", s.comfort).put("mirrorOut", s.mirrorOut).put("mirrorPitch", s.mirrorPitch).put("strict", s.strict)
-                .put("coachHand", s.coachHand).put("hands", s.hands).put("pinchHold", s.pinchHold).put("gazeDot", s.gazeDot).put("volume", s.volume).put("muted", s.muted)
+                .put("settingsV", 2).put("gazeDot", s.gazeDot).put("master", s.master).put("carVol", s.carVol).put("cueVol", s.cueVol).put("muted", s.muted)
             prefs.edit().putString("settings", o.toString()).apply()
         }
 
@@ -62,6 +62,11 @@ class Store(context: Context) {
     var eyeAsked: Boolean
         get() = prefs.getBoolean("eyeAsked", false)
         set(v) = prefs.edit().putBoolean("eyeAsked", v).apply()
+
+    /** How many times the eye-tracking dialog was really answered "don't allow" (R9c: after two the system stops showing it). */
+    var eyeDenied: Int
+        get() = prefs.getInt("eyeDenied", 0)
+        set(v) = prefs.edit().putInt("eyeDenied", v).apply()
 
     private fun ints(k: String) = (prefs.getString(k, "") ?: "").split(',').mapNotNull { it.toIntOrNull() }.toSet()
 

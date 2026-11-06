@@ -49,6 +49,7 @@ internal fun YdStage(state: YdUiState, scene: YardScene, onEvent: (YdEvent) -> U
             AttachmentPanel(PanelIds.HUB) { PoolPanel(PanelIds.HUB, scene) { v -> HubPanel(if (v) state else null) } }
             AttachmentPanel(PanelIds.MRD_L) { PoolPanel(PanelIds.MRD_L, scene) { v -> MrdPanel(if (v) state else null, left = true) } }
             AttachmentPanel(PanelIds.MRD_R) { PoolPanel(PanelIds.MRD_R, scene) { v -> MrdPanel(if (v) state else null, left = false) } }
+            AttachmentPanel(PanelIds.HINT) { PoolPanel(PanelIds.HINT, scene) { v -> HintPanel(if (v) state else null) } }
             AttachmentPanel(PanelIds.MIR_L) { PoolPanel(PanelIds.MIR_L, scene) { v -> MirrorPanel(if (v) pics[Mirrors.Id.L] else null, wide = false) } }
             AttachmentPanel(PanelIds.MIR_R) { PoolPanel(PanelIds.MIR_R, scene) { v -> MirrorPanel(if (v) pics[Mirrors.Id.R] else null, wide = false) } }
             AttachmentPanel(PanelIds.MIR_I) { PoolPanel(PanelIds.MIR_I, scene) { v -> MirrorPanel(if (v) pics[Mirrors.Id.I] else null, wide = true) } }

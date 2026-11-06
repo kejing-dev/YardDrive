@@ -2,6 +2,7 @@ package io.embodit.yarddrive.platform
 
 import android.os.SystemClock
 import com.pico.spatial.tracking.DataProvider
+import io.embodit.yarddrive.BuildConfig
 import com.pico.spatial.tracking.hmd.HMDTrackingProvider
 import io.embodit.yarddrive.domain.HeadPose
 import io.embodit.yarddrive.domain.Quat4
@@ -23,6 +24,12 @@ class HeadTracker {
     /** Debug: tracking counts as lost. */
     var forceLost = false
 
+    /** Debug builds, `adb shell setprop debug.yarddrive.nohead 1`: no pose and "not in Full Space" from the start (R11, S20). */
+    private val noHead: Boolean =
+        BuildConfig.DEBUG && runCatching {
+            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, "debug.yarddrive.nohead") == "1"
+        }.getOrDefault(false)
+
     fun start() {
         if (provider != null) return
         val p = HMDTrackingProvider()
@@ -43,7 +50,7 @@ class HeadTracker {
 
     /** Null while the head can be tracked (or it is not yet known); else why not. */
     fun blockReason(): String? =
-        when (supportState()) {
+        if (noHead) "debug-nohead" else when (supportState()) {
             DataProvider.SupportState.NOT_IN_FULL_SPACE -> "not-in-full-space"
             DataProvider.SupportState.DEVICE_NOT_SUPPORTED -> "device-not-supported"
             else -> null
@@ -54,6 +61,7 @@ class HeadTracker {
 
     /** Current head pose, or the last one that was valid, or null before the first sample. */
     fun pose(): HeadPose? {
+        if (noHead) return null
         val p = provider ?: return last
         val pose = runCatching { p.latestData.hmdPose }.getOrNull() ?: return last
         val position = pose.position

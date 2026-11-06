@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.embodit.yarddrive.ui.YdEvent
+import io.embodit.yarddrive.domain.Copy
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -41,6 +43,7 @@ import com.pico.spatial.ui.design.Switch
 import com.pico.spatial.ui.design.Text
 import com.pico.spatial.ui.foundation.material.backgroundMaterial
 import com.pico.spatial.ui.platform.Material
+import io.embodit.yarddrive.R
 import io.embodit.yarddrive.domain.Tr
 import io.embodit.yarddrive.platform.YdLog
 import io.embodit.yarddrive.ui.YdUiState
@@ -62,7 +65,7 @@ internal fun YdUiState.f(tr: Tr, vararg args: Any): String = String.format(java.
 @Composable
 internal fun fits(name: String, text: String): (TextLayoutResult) -> Unit {
     val panel = LocalProbePanel.current
-    return { r -> if (r.hasVisualOverflow) YdLog.w("OVERFLOW $panel/$name text=\"$text\" lines=${r.lineCount} w=${r.size.width}") }
+    return { r -> if (r.hasVisualOverflow) YdLog.w("OVERFLOW $panel/$name text=\"$text\" lines=${r.lineCount} w=${r.size.width} h=${r.size.height} needs=${r.multiParagraph.height}") }
 }
 
 /** One fixed-line text with the overflow log (never an ellipsis: clipped text is a bug, D13). */
@@ -73,9 +76,17 @@ internal fun Line(text: String, name: String, style: TextStyle, color: Color = P
 
 /** Glass root of P1 / P2 / HUB / MRD (SpatialUI system glass, design surface). */
 @Composable
-internal fun Glass(w: Float, h: Float, shape: Shape = GlassShape, padding: Dp = 24.dp, content: @Composable ColumnScope.() -> Unit) {
+internal fun Glass(w: Float, h: Float, shape: Shape = GlassShape, padding: Dp = 24.dp, paddingV: Dp = padding, content: @Composable ColumnScope.() -> Unit) {
     Box(modifier = Modifier.size(w.dp, h.dp).clip(shape).backgroundMaterial(enable = true, style = Material.Regular).then(glassRefresh())) {
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) { content() }
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = padding, vertical = paddingV)) { content() }
+    }
+}
+
+/** A solid page for when the glass has nothing behind it (profile D33); text on it is ink. */
+@Composable
+internal fun SolidCard(w: Float, h: Float, content: @Composable ColumnScope.() -> Unit) {
+    Box(modifier = Modifier.size(w.dp, h.dp).clip(GlassShape).background(YdColors.Card)) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) { content() }
     }
 }
 
@@ -169,6 +180,11 @@ internal fun TopBar(title: String, sub: String?, subLines: Int = 1, trailing: @C
     }
 }
 
+@Composable
+internal fun MuteKey(state: YdUiState, onEvent: (YdEvent) -> Unit, name: String = "mute") =
+    // fixed to the wider of its two words, so pressing it moves nothing next to it (q5-1)
+    Key(if (state.settings.muted) state.t(Copy.unmute) else state.t(Copy.mute), name, icon = if (state.settings.muted) R.drawable.ic_volume_up else R.drawable.ic_volume_off, modifier = Modifier.width(if (state.zh) 108.dp else 133.dp)) { onEvent(YdEvent.Mute) }
+
 /** A labelled settings / form row, >= 56 dp high. */
 @Composable
 internal fun FormRow(label: String, sub: String?, name: String, modifier: Modifier = Modifier, control: @Composable RowScope.() -> Unit) {
@@ -190,12 +206,12 @@ internal fun Badge(text: String, name: String, fill: Color) = Chip(text, name, f
  * a coloured stroke on it is not safe; ink on these fills is >= 4.5:1, tools/contrast.py). [fill] null = plain label.
  */
 @Composable
-internal fun Tag(text: String, name: String, style: TextStyle, fill: Color?, lines: Int = 1, modifier: Modifier = Modifier) {
+internal fun Tag(text: String, name: String, style: TextStyle, fill: Color?, lines: Int = 1, modifier: Modifier = Modifier, padV: Dp = 1.dp) {
     if (fill == null) {
         Line(text, name, style, lines = lines, modifier = modifier)
         return
     }
-    Box(modifier = modifier.clip(RoundedCornerShape(12.dp)).background(fill).padding(horizontal = 10.dp, vertical = 1.dp)) {
+    Box(modifier = modifier.clip(RoundedCornerShape(12.dp)).background(fill).padding(horizontal = 10.dp, vertical = padV)) {
         Line(text, name, style, color = YdColors.Ink, lines = lines)
     }
 }

@@ -12,13 +12,32 @@ import kotlin.math.tan
  * and its picture, flipped left-right like a mirror, fills the mirror rectangle. It draws only geometry: the painted
  * lines, the corner poles and your own car's side, wheel arch and bumper outline. Not used by the judge (B27).
  */
+/**
+ * Everything that turns with a mirror gets its normal here, in the same call: the mirror face, its frame plate, its bar
+ * (profile D35, critic5-B1). [apply] is the scene; [step] once a frame. [reset] after anything else placed them.
+ */
+class MirrorFollower(private val apply: (Mirrors.Spec, V3) -> Unit) {
+    private var aim: Pair<Int, Int>? = null
+
+    fun step(outDeg: Int, pitchDeg: Int) {
+        val now = outDeg to pitchDeg
+        if (now == aim) return
+        aim = now
+        for (spec in Mirrors.all) apply(spec, Mirrors.normal(spec, Mirrors.aim(spec, outDeg.toDouble(), pitchDeg.toDouble())))
+    }
+
+    fun reset() {
+        aim = null
+    }
+}
+
 object Mirrors {
     enum class Id { L, R, I }
 
     data class Spec(val id: Id, val pos: V3, val wM: Double, val hM: Double, val fovH: Double, val fovV: Double)
 
-    val L = Spec(Id.L, V3(-0.70, -0.20, -0.62), 0.18, 0.11, 33.0, 20.0)
-    val R = Spec(Id.R, V3(1.44, -0.20, -0.62), 0.18, 0.11, 33.0, 20.0)
+    val L = Spec(Id.L, V3(-0.70, -0.185, -0.62), 0.18, 0.11, 33.0, 20.0)
+    val R = Spec(Id.R, V3(1.44, -0.185, -0.62), 0.18, 0.11, 33.0, 20.0)
     val I = Spec(Id.I, V3(0.33, 0.12, -0.48), 0.26, 0.07, 40.0, 11.0)
     val all = listOf(L, R, I)
 
@@ -73,20 +92,24 @@ object Mirrors {
     const val BODY_DARK = 0xFF2B2E33.toInt()
     const val RED = 0xFFFF3B30.toInt()
     const val CYAN = 0xFF5BD6C8.toInt()
+    const val FLASH_YELLOW = 0xFFFFE94A.toInt()
+    const val FLASH_WHITE = 0xFFFFFFFF.toInt()
 
     /**
      * The picture of one mirror for car [pose], eye height [eyeH] and the current eye position [eye] (cabin). [poles] and
      * [aux] switch the corner poles and the dashed control-line extensions; [lane] draws the lesson-2 lane instead of
-     * the bay; [flash] colours one judged line red.
+     * the bay; [flash] colours one judged line red; [point] colours the lines the yard tour is naming (lesson 1).
      */
-    fun picture(spec: Spec, pose: Pose, eyeH: Double, eye: V3, outDeg: Double, pitchDeg: Double, poles: Boolean, lane: Boolean, gap: Double, flash: JudgeLine?): Picture {
+    fun picture(spec: Spec, pose: Pose, eyeH: Double, eye: V3, outDeg: Double, pitchDeg: Double, poles: Boolean, lane: Boolean, gap: Double, flash: JudgeLine?, point: List<Seg2> = emptyList(), pointYellow: Boolean = false): Picture {
         val cam = camera(spec, eye, outDeg, pitchDeg)
         val polys = ArrayList<Poly>()
         val ground = if (lane) lanePaint(gap) else Yard.paint.filter { poles || !it.aux }
         val flashSeg = flash?.let { (if (lane) Yard.laneLines(gap) else Yard.judgeLines())[it] }
         for (pt in ground) {
             val red = flashSeg != null && near(pt.seg, flashSeg)
-            stripe(cam, pose, eyeH, pt, if (red) RED else if (pt.yellow) YELLOW else WHITE, polys)
+            val named = point.any { near(pt.seg, it) }
+            val named2 = if (named) pt.copy(width = pt.width * 2) else pt
+            stripe(cam, pose, eyeH, named2, if (red) RED else if (named) (if (pointYellow) FLASH_YELLOW else FLASH_WHITE) else if (pt.yellow) YELLOW else WHITE, polys)
         }
         if (poles && !lane) for (p in Yard.poles) pole(cam, pose, eyeH, p, polys)
         body(cam, spec, eyeH, polys)

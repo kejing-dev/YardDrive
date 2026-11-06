@@ -60,7 +60,7 @@ class SloppyTest {
                     locked = true
                 }
             } else if (!straight) {
-                if (Truth.toStraighten(s, p) <= -straightenDeg) {
+                if (Truth.toStraighten(s, p, r.sim.vSet) <= -straightenDeg) {
                     r.steerButton(0.0)
                     straight = true
                 }

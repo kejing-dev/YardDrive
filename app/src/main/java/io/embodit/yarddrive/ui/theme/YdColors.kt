@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.Color
  * (tools/contrast.py); fills carry dark ink (D13).
  */
 object YdColors {
+    val Card = Color(0xFFE6E8EA) // design-style: fixed-figma-color solid card of the pages shown before the scene (ink on it 14:1)
+    val FlashYellow = Color(0xFFFFE94A) // design-style: fixed-figma-color palette.yard.bayLine, flashing
+    val FlashWhite = Color(0xFFFFFFFF) // design-style: fixed-figma-color palette.yard.whiteLine, flashing
     val Ink = Color(0xFF111418) // design-style: fixed-figma-color ink on light fills
     val InteractionFill = Color(0xFF5A9CFF) // design-style: fixed-figma-color interaction fill (factory, traffic-signals v0.1.1)
     val Left = Color(0xFF7FB2FF) // design-style: fixed-figma-color palette.ui.left
@@ -17,7 +20,7 @@ object YdColors {
     val PassFill = Color(0xFF2E8B57) // design-style: fixed-figma-color palette.ui.pass (fill, ink on it)
     val PassText = Color(0xFF7FE0A8) // design-style: fixed-figma-color pass, lifted for text on glass (sample)
     val FailText = Color(0xFFFF8F7A) // design-style: fixed-figma-color fail, lifted for text on glass (sample)
-    val Danger = Color(0xFFFF6B5E) // design-style: fixed-figma-color danger fill with ink (factory, 6.7:1)
+    val Danger = Color(0xFFFF8478) // design-style: fixed-figma-color danger fill with ink (8.2:1, lifted for q1-7)
     val LineRed = Color(0xFFFF3B30) // design-style: fixed-figma-color palette.ui.lineFlash
     val Asphalt = Color(0xFF4A4D52) // design-style: fixed-figma-color palette.yard.asphalt (canvases)
     val BayYellow = Color(0xFFF2C94C) // design-style: fixed-figma-color palette.yard.bayLine

@@ -1,5 +1,6 @@
 package io.embodit.yarddrive.domain
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -24,8 +25,13 @@ object CarModel {
     const val SILL_Y = -0.22
     const val G = -1.20
 
-    /** Steering wheel centre, rim radius, and the axis towards you (plane tilted back 25°). */
-    val WHEEL_CENTRE = V3(0.0, -0.354, -0.42)
+    /**
+     * Steering wheel centre, rim radius, and the axis towards you (plane tilted back 25°).
+     * B1: the design's rim top "-29.8°" came from shoulder-check (rim top at z -0.344, the tilt added towards you); the
+     * mesh tilts the top away from you, as a real column does (rim top z -0.50), so at centre y -0.354 the silhouette
+     * was really -19.2°, touching P1 / P2. The centre is lowered so the real silhouette is the design's -29.8°.
+     */
+    val WHEEL_CENTRE = V3(0.0, -0.465, -0.42)
     const val WHEEL_R = 0.18
     val WHEEL_AXIS = V3(0.0, kotlin.math.sin(Math.toRadians(25.0)), kotlin.math.cos(Math.toRadians(25.0)))
     val GEAR_KNOB = V3(0.37, -0.33, -0.30)
@@ -59,7 +65,7 @@ object CarModel {
             b("pillarB$n", V3(sx, SILL_Y, 0.33), V3(inner, ROOF_Y, 0.42), Shade.TRIM)
             b("pillarC$n", V3(sx, -0.30, 1.88), V3(inner, ROOF_Y, 2.10), Shade.TRIM)
             val mx = if (n == "L") -0.70 else 1.44
-            b("mirHouse$n", V3(mx - 0.10, -0.255, -0.80), V3(mx + 0.10, -0.145, -0.66), Shade.FRAME)
+            b("mirHouse$n", V3(mx - 0.10, -0.255, -0.83), V3(mx + 0.10, -0.13, -0.69), Shade.FRAME) // lower edge is the chant datum (Car.MIRROR_EDGE_*), kept
             b("mirArm$n", V3(sx, -0.22, -0.76), V3(mx, -0.18, -0.70), Shade.FRAME)
         }
         b("roof", V3(XL, ROOF_Y, -0.52), V3(XR, ROOF_Y + 0.03, 1.92), Shade.BODY)
@@ -76,6 +82,83 @@ object CarModel {
 
     /** The A pillars (rods from the dash corner to the roof front edge), cabin. */
     val pillarsA: List<Pair<V3, V3>> = listOf(V3(XL + 0.03, -0.38, -1.02) to V3(XL + 0.03, ROOF_Y, -0.52), V3(XR - 0.03, -0.38, -1.02) to V3(XR - 0.03, ROOF_Y, -0.52))
+
+    /** The steering column: from behind the hub down along the wheel's axis to the dash. */
+    val column: Pair<V3, V3> = (WHEEL_CENTRE - WHEEL_AXIS * 0.03) to (WHEEL_CENTRE - WHEEL_AXIS * 0.33)
+    const val ROD_R = 0.035
+
+    /** A part of the mesh that is not axis-aligned: centre, axes, half sizes. The scene builds from the same numbers. */
+    data class Solid(val name: String, val c: V3, val x: V3, val y: V3, val z: V3, val hx: Double, val hy: Double, val hz: Double) {
+        private fun local(p: V3) = (p - c).let { d -> V3(d.dot(x), d.dot(y), d.dot(z)) }
+
+        fun contains(p: V3): Boolean = local(p).let { abs(it.x) < hx && abs(it.y) < hy && abs(it.z) < hz }
+
+        /** Does the segment eye (origin) -> [p] go through the inside? */
+        fun crossedBy(p: V3): Boolean {
+            val a = local(V3(0.0, 0.0, 0.0))
+            val b = local(p)
+            var t0 = 0.0
+            var t1 = 1.0
+            for ((o, e, h) in listOf(Triple(a.x, b.x, hx), Triple(a.y, b.y, hy), Triple(a.z, b.z, hz))) {
+                val d = e - o
+                if (abs(d) < 1e-12) {
+                    if (abs(o) >= h) return false
+                    continue
+                }
+                val u = (-h - o) / d
+                val v = (h - o) / d
+                t0 = max(t0, min(u, v))
+                t1 = min(t1, max(u, v))
+                if (t0 >= t1) return false
+            }
+            return true
+        }
+    }
+
+    /** The scene's rod: a square bar along a -> b, turned as Quat4.fromTo turns it. */
+    fun rodSolid(name: String, a: V3, b: V3, r: Double = ROD_R): Solid {
+        val d = b - a
+        val q = Quat4.fromTo(Vec3(0f, 0f, 1f), d.normalized().f())
+        fun axis(v: Vec3) = q.rotate(v).let { V3(it.x.toDouble(), it.y.toDouble(), it.z.toDouble()) }
+        return Solid(name, (a + b) * 0.5, axis(Vec3(1f, 0f, 0f)), axis(Vec3(0f, 1f, 0f)), axis(Vec3(0f, 0f, 1f)), r, r, d.length / 2)
+    }
+
+    private fun basis(name: String, c: V3, n: V3, hx: Double, hy: Double, hz: Double): Solid {
+        val u = V3(0.0, 1.0, 0.0).cross(n).normalized()
+        return Solid(name, c, u, n.cross(u), n, hx, hy, hz)
+    }
+
+    /** The frame plate behind a mirror face: 1.2 cm wider each way, 6...18 mm behind it (design says 4 mm back, deviation). */
+    fun framePlate(spec: Mirrors.Spec, n: V3): Solid =
+        basis("frame${spec.id}", spec.pos - n * 0.012, n, spec.wM / 2 + 0.012, spec.hM / 2 + 0.012, 0.006)
+
+    /**
+     * The narrow bar from the frame plate to the shell, so the side mirror does not float 5 cm in front of it. It runs
+     * straight back along the mirror's normal, which keeps it behind the face from the eye (test strutsHideBehindTheMirror).
+     */
+    fun mirrorStrut(spec: Mirrors.Spec, n: V3): Solid {
+        val from = 0.012
+        val to = (spec.pos.z + 0.70) / n.z // 1 cm into the shell, whose rear is at z -0.69
+        return basis("strut${spec.id}", spec.pos - n * ((from + to) / 2), n, 0.015, 0.010, (to - from) / 2)
+    }
+
+    /** Mesh that is not in [boxes], at this mirror aim (the settings' sliders). The wheel itself is PanelCone's business. */
+    fun extrasAt(outDeg: Double, pitchDeg: Double): List<Solid> {
+        val l = ArrayList<Solid>()
+        pillarsA.forEachIndexed { i, (a, b) -> l += rodSolid("pillarA${if (i == 0) "L" else "R"}", a, b) }
+        l += rodSolid("column", column.first, column.second)
+        // the gear knob: rod and head, both gear positions
+        l += Solid("gearKnob", GEAR_KNOB + V3(0.0, -0.03, 0.0), V3(1.0, 0.0, 0.0), V3(0.0, 1.0, 0.0), V3(0.0, 0.0, 1.0), 0.025, 0.07, 0.05)
+        for (spec in Mirrors.all) {
+            val n = Mirrors.normal(spec, Mirrors.aim(spec, outDeg, pitchDeg))
+            l += framePlate(spec, n)
+            if (spec.id != Mirrors.Id.I) l += mirrorStrut(spec, n)
+        }
+        return l
+    }
+
+    /** At the default aim. */
+    val extras: List<Solid> by lazy { extrasAt(5.0, -16.0) }
 
     /** Outer body boxes (the shell that defines the car's size). */
     val shellNames = setOf("hood", "frontFace", "sideL", "sideR", "fenderL", "fenderR", "roof", "trunk", "rearFace", "bumperR", "bumperF")

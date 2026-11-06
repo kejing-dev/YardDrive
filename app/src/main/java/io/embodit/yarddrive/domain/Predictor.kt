@@ -52,7 +52,7 @@ object Predictor {
 
     enum class Advice { KEEP, EASE, LOCK_AGAIN, NO_WAY }
 
-    /** [rate] is the user's turning rate (buttons 1350°/s, the last manual grab otherwise). */
+    /** [rate] is the user's turning rate (buttons 1350°/s). */
     fun predict(from: DriveSim, seg: SegId, extra: Double, rate: Double = Car.BUTTON_RATE, keepPath: Boolean = false): Result {
         val sign = seg.lockSign
         val hold = run(from, seg, extra, Kind.HOLD, 0.0, keepPath) { _, _ -> }
@@ -75,7 +75,6 @@ object Predictor {
     /** Runs one branch: [plan] gets the sim and the branch time (called every step until the auto-straighten). */
     fun run(from: DriveSim, seg: SegId, extra: Double, kind: Kind, dt: Double, keepPath: Boolean, plan: (DriveSim, Double) -> Unit): Branch {
         val s = from.copy()
-        s.grabbed = false
         s.stickRate = 0.0
         s.go = true
         val lines = Yard.judgeLines(extra).values.toList()
@@ -96,7 +95,7 @@ object Predictor {
             if (!straightened) {
                 plan(s, t)
                 val err = abs(Angles.wrapDeg(s.pose.psiDeg - target))
-                if (err <= Truth.STRAIGHTEN_EARLY_DEG) {
+                if (err <= Truth.straightenEarly(s.vSet)) {
                     s.steerTo(0.0, Car.BUTTON_RATE)
                     straightened = true
                 } else if (t - lastCheck >= 1.0) {

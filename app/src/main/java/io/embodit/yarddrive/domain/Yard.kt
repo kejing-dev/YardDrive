@@ -58,6 +58,29 @@ object Yard {
             Paint(Seg2(P2(CONTROL_X, ROAD_Z), P2(CONTROL_X, CTRL_EXT_TO)), false, dashed = true, width = 0.08, aux = true),
         )
 
+    /**
+     * The yard tour's five sentences (Copy.tourLines) -> the paint each one names (design S26 2, "the line flashes"). The
+     * poles' sentence marks the four corners on the ground.
+     */
+    fun tourLines(i: Int): List<Seg2> =
+        when (i) {
+            0 -> paint.subList(0, 3).map { it.seg }
+            1 -> poles.flatMap { listOf(Seg2(P2(it.x - 0.35, it.z), P2(it.x + 0.35, it.z)), Seg2(P2(it.x, it.z - 0.35), P2(it.x, it.z + 0.35))) }
+            2 -> paint.subList(3, 6).map { it.seg }
+            3 -> paint.subList(7, 9).map { it.seg }
+            4 -> listOf(paint[6].seg)
+            else -> emptyList()
+        }
+
+    /** That sentence is about yellow things (they flash bright yellow, the white lines bright white). */
+    fun tourYellow(i: Int): Boolean = i <= 1
+
+    /** That sentence is told from inside the bay: the lines are in the side mirrors and the top view. */
+    fun tourInBay(i: Int): Boolean = i <= 1
+
+    /** Where the car stands for that sentence: the bay's two sentences first, then the start, so it jumps twice in all. */
+    fun tourPose(i: Int, gap: Double): Pose = if (tourInBay(i)) inBay else rightStart(gap)
+
     /** Judge lines, widened by [extra] on each side of the bay (0 = exam). */
     fun judgeLines(extra: Double = 0.0): Map<JudgeLine, Seg2> {
         val h = BAY_HALF + extra / 2

@@ -26,6 +26,16 @@ object Free {
         return Start(seed, difficulty, Pose(base.x + dx, base.z + dz, Math.toRadians(dp)), dx, dz, dp, seat)
     }
 
+    /**
+     * The run of one free-practice start (profile D30): a random seat goes into this run's config only, the settings are
+     * never written. [Start.seat] equal to your own seat means nothing changes this time.
+     */
+    fun config(s: Settings, st: Start, easy: Boolean, lockX: Double): RunConfig =
+        RunConfig(
+            mode = Mode.FREE, rules = if (easy) Rules.LESSON else Rules.EXAM, lenient = easy, strict = s.strict, timed = !easy, gap = s.gap, start = st.pose, speed = s.speed, lockX = lockX,
+            seed = st.seed, difficulty = st.difficulty, seat = st.seat?.takeIf { it != s.seat },
+        )
+
     /** True when the rounded offsets are within the design ranges (U11 sanity). */
     fun inRange(s: Start): Boolean = s.dx >= -0.1001 && s.dx <= 0.3001 && abs(s.dz) <= 0.2501 && abs(s.dPsiDeg) <= 4.0001
 

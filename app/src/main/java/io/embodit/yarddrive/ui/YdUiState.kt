@@ -1,5 +1,6 @@
 package io.embodit.yarddrive.ui
 
+import io.embodit.yarddrive.domain.Copy
 import io.embodit.yarddrive.domain.Gear
 import io.embodit.yarddrive.domain.Hit
 import io.embodit.yarddrive.domain.JudgeLine
@@ -13,12 +14,14 @@ import io.embodit.yarddrive.domain.RunPhase
 import io.embodit.yarddrive.domain.SegId
 import io.embodit.yarddrive.domain.Settings
 import io.embodit.yarddrive.domain.Stats
+import io.embodit.yarddrive.domain.StopView
 import io.embodit.yarddrive.domain.Tr
 
 /** What P1 shows (design informationArchitecture); DEMO / RUN / REPLAY / POINT / TOUR put P2 up instead. */
 enum class Screen { LOADING, SIT, HOME, LESSONS, LIBRARY, POINT, FREE_PICK, DEMO, RUN, RESULT, REPLAY, SCORECARD, SETTINGS, ABOUT, UNAVAILABLE, TOUR_INTRO, TOUR }
 
-enum class Confirm { NONE, EXIT, CLEAR }
+/** EXIT / CLEAR on their pages; RESTART / HOME on the pause page when a run would be lost (D44, q7-7). */
+enum class Confirm { NONE, EXIT, CLEAR, RESTART, HOME }
 
 /** The live run as P2 / HUB / MRD draw it (10 Hz). */
 data class RunView(
@@ -63,6 +66,11 @@ data class RunView(
     val laneSawCentre: Boolean = false,
     val advice: Predictor.Advice? = null,
     val nose: Double? = null,
+    /** What the stop ring and the "settled" line show: read from the judge (profile D31). */
+    val stop: StopView = StopView(),
+    val started: Boolean = false,
+    /** Free practice: the coach moved the seat for this run only (profile D30). */
+    val seatHint: Tr? = null,
 )
 
 data class FreeInfo(val run: Int, val of: Int, val difficulty: Int, val seed: Int)
@@ -99,6 +107,10 @@ data class ResultView(
     val tour: Pair<Int, Int>? = null,
     val lane: Triple<Int, Boolean, Boolean>? = null,
     val mockCall: Boolean = false,
+    /** The segment the run failed in (q1-5: its chip shows a cross). */
+    val failSeg: Int? = null,
+    /** Test rules: mid-way stops cost points; lesson rules only note them (design lessonMode). */
+    val exam: Boolean = true,
 )
 
 data class TourView(val step: Int = 0, val lit: List<Boolean> = listOf(false, false, false, false), val line: Int = 0, val lp: Int = 1, val seen: Int = 0)
@@ -131,6 +143,22 @@ data class YdUiState(
     val replayNote: Tr? = null,
     val tour: TourView = TourView(),
     val flashLine: JudgeLine? = null,
+    /** Yard tour: the sentence whose lines are flashing, -1 = none (R3). */
+    val tourFlash: Int = -1,
+    /** "Stop before you shift" is showing (R9b). */
+    val gearNote: Boolean = false,
+    /** Why Go just did nothing, for a few seconds (P2). */
+    val goNote: Tr? = null,
+    /** The placing flow is running: P1 is away, one line says look ahead (profile D29). */
+    val reseating: Boolean = false,
+    val lookLeftS: Double = 0.0,
+    val reseatDone: Boolean = false,
+    /** Why the placing flow did not run or ended without placing (about 3 s on the page's sub line, R4 / R5). */
+    val seatNote: Tr? = null,
+    /** S01: the panel is out of view on this side (-1 left, 1 right, 0 in view), R5. */
+    val panelAway: Int = 0,
+    /** The system no longer shows the eye-tracking dialog (R9c). */
+    val eyeNote: Boolean = false,
     val glow: Set<Char> = emptySet(),
     val version: String = "0.1.0",
     val seatedOnce: Boolean = false,
@@ -140,7 +168,7 @@ data class YdUiState(
 
     /** P1 visible? (design panels P1.visibleIn) */
     val p1: Boolean
-        get() = paused || screen in setOf(Screen.LOADING, Screen.SIT, Screen.HOME, Screen.LESSONS, Screen.LIBRARY, Screen.FREE_PICK, Screen.RESULT, Screen.SCORECARD, Screen.SETTINGS, Screen.ABOUT, Screen.UNAVAILABLE, Screen.TOUR_INTRO)
+        get() = (!reseating || screen == Screen.UNAVAILABLE) && (paused || screen in setOf(Screen.LOADING, Screen.SIT, Screen.HOME, Screen.LESSONS, Screen.LIBRARY, Screen.FREE_PICK, Screen.RESULT, Screen.SCORECARD, Screen.SETTINGS, Screen.ABOUT, Screen.UNAVAILABLE, Screen.TOUR_INTRO))
 
     val p2: Boolean get() = !paused && screen in setOf(Screen.POINT, Screen.DEMO, Screen.RUN, Screen.REPLAY, Screen.TOUR)
 
@@ -175,6 +203,36 @@ data class YdUiState(
             else -> "S02"
         }
 
+    /** Why Go can't move the car right now, or null when it can: the key and the A button say so instead of doing nothing. */
+    fun goReason(): Tr? {
+        val gearLine = { g: Gear -> Tr(String.format(Copy.shiftFirst.zh, g.name), String.format(Copy.shiftFirst.en, g.name)) }
+        return when {
+            screen == Screen.POINT || screen == Screen.TOUR -> Copy.goNotHere
+            screen == Screen.DEMO -> Copy.goDemo
+            screen == Screen.REPLAY -> Copy.goReplay
+            screen != Screen.RUN -> Copy.goNotHere
+            lost -> Copy.goLost
+            run.phase == RunPhase.LINE -> Copy.goLine
+            run.phase == RunPhase.FINISHED -> Copy.goDone
+            run.wrongGear -> gearLine(run.segs.getOrNull(run.segIndex)?.gear ?: run.gear)
+            run.phase == RunPhase.SEG_DONE -> gearLine(run.segs.getOrNull(run.segIndex + 1)?.gear ?: run.gear)
+            else -> null
+        }
+    }
+
+    /** [goReason] in a few words, for the line under the grey Go key (D43, q7-3); the tap still says the whole sentence. */
+    fun goWhy(): Tr? =
+        when (val r = goReason()) {
+            null -> null
+            Copy.goNotHere -> Copy.goWhyNotHere
+            Copy.goDemo -> Copy.goWhyDemo
+            Copy.goReplay -> Copy.goWhyReplay
+            Copy.goLine -> Copy.goWhyLine
+            Copy.goDone -> Copy.goWhyDone
+            Copy.goLost -> Copy.goWhyLost
+            else -> r
+        }
+
     fun modifiers(): String {
         val m = ArrayList<String>()
         val inRun = screen == Screen.RUN || screen == Screen.DEMO
@@ -184,7 +242,6 @@ data class YdUiState(
         if (!zh) m += "S21"
         if (eyeOff) m += "S22"
         if (inRun && run.stepMode) m += "S23"
-        if (settings.hands) m += "S24"
         if (inRun && run.stepByStep) m += "S25"
         if (inRun && run.lane) m += "S27"
         return m.joinToString(",")

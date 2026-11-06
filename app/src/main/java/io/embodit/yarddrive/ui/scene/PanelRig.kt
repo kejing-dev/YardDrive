@@ -122,6 +122,14 @@ internal class PanelRig(private val stageRoot: Entity, private val onVisibility:
         /** Point this panel turns to instead of the viewer (the lectern panel keeps its heading, q1-1). */
         var facePoint: Vec3? = null
 
+        /** Turns to [point] now, however small the change (a mirror slider moves 1° at a time). */
+        fun turnTo(point: Vec3) {
+            facePoint = point
+            facing = FacePanel.facing(position, point, lastYaw, maxPitch)
+            faced = true
+            holder.setLocal(rotation = facing.rotation)
+        }
+
         internal fun face(viewer: Vec3) {
             val f = FacePanel.facing(position, facePoint ?: viewer, lastYaw, maxPitch)
             if (faced && angle(f.yaw, facing.yaw) < FACE_STEP_RAD && abs(f.pitch - facing.pitch) < FACE_STEP_RAD) return

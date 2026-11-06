@@ -6,8 +6,8 @@ import android.media.AudioTrack
 import io.embodit.yarddrive.domain.Synth
 
 /**
- * Playback of the synthesized sounds (design audio): one-shots on static AudioTracks, two loops (idle, tyres) whose
- * volume follows the car. Mute and the three master levels come from the settings; muting stops everything at once (D15).
+ * Playback of the synthesized sounds (design audio): one-shots on static AudioTracks, two loops (idle, tyres). Master and
+ * the two groups (car sounds, cue sounds, profile B20) come from the settings; muting stops everything at once (D15).
  */
 class Sound {
     var muted = false
@@ -15,12 +15,16 @@ class Sound {
             field = v
             applyLoops()
         }
-    var level = 1
-        set(v) {
-            field = v.coerceIn(0, 2)
-            applyLoops()
-        }
-    private val gain: Float get() = Synth.LEVELS[level]
+
+    /** Percent: master, car sounds, cue sounds. */
+    fun setVolumes(master: Int, car: Int, cue: Int) {
+        carGain = master / 100f * car / 100f
+        cueGain = master / 100f * cue / 100f
+        applyLoops()
+    }
+
+    private var carGain = 1f
+    private var cueGain = 1f
     private var idle: AudioTrack? = null
     private var tyres: AudioTrack? = null
     private var idleOn = false
@@ -41,7 +45,7 @@ class Sound {
             t
         }.onFailure { YdLog.w("SOUND track failed: $it") }.getOrNull()
 
-    private fun shot(data: FloatArray) {
+    private fun shot(data: FloatArray, gain: Float) {
         if (muted) return
         val t = track(data, false) ?: return
         runCatching {
@@ -55,39 +59,40 @@ class Sound {
         }
     }
 
-    fun wheelTick() = shot(Synth.wheelTick)
-    fun cue() = shot(Synth.cueTick)
-    fun lock() = shot(Synth.lockClunk)
-    fun gear() = shot(Synth.gearClack)
-    fun refused() = shot(Synth.refused)
-    fun line() = shot(Synth.lineBuzz)
-    fun fail() = shot(Synth.failTone)
-    fun pass() = shot(Synth.passDing)
-    fun stopBeep() = shot(Synth.stopBeep)
+    fun wheelTick() = shot(Synth.wheelTick, carGain)
+    fun lock() = shot(Synth.lockClunk, carGain)
+    fun gear() = shot(Synth.gearClack, carGain)
+    fun cue() = shot(Synth.cueTick, cueGain)
+    fun refused() = shot(Synth.refused, cueGain)
+    fun line() = shot(Synth.lineBuzz, cueGain)
+    fun fail() = shot(Synth.failTone, cueGain)
+    fun pass() = shot(Synth.passDing, cueGain)
+    fun stopBeep() = shot(Synth.stopBeep, cueGain)
 
-    /** The engine idles while you sit in the car; tyres only while moving. */
+    /** The engine idles only in the driving part (R6, D15); tyres only while moving. */
     fun setLoops(idleOn: Boolean, tyresOn: Boolean) {
         if (this.idleOn == idleOn && this.tyresOn == tyresOn) return
         this.idleOn = idleOn
         this.tyresOn = tyresOn
+        YdLog.i("SOUND loops idle=$idleOn tyres=$tyresOn")
         applyLoops()
     }
 
     private fun applyLoops() {
-        fun drive(t: AudioTrack?, on: Boolean, make: () -> AudioTrack?, k: Float): AudioTrack? {
+        fun drive(t: AudioTrack?, on: Boolean, make: () -> AudioTrack?): AudioTrack? {
             if (!on || muted) {
                 if (t != null) runCatching { t.pause() }
                 return t
             }
             val tr = t ?: make() ?: return null
             runCatching {
-                tr.setVolume(gain * k)
+                tr.setVolume(carGain)
                 if (tr.playState != AudioTrack.PLAYSTATE_PLAYING) tr.play()
             }
             return tr
         }
-        idle = drive(idle, idleOn, { track(Synth.idle, true) }, 0.6f)
-        tyres = drive(tyres, tyresOn, { track(Synth.tyres, true) }, 0.5f)
+        idle = drive(idle, idleOn) { track(Synth.idle, true) }
+        tyres = drive(tyres, tyresOn) { track(Synth.tyres, true) }
     }
 
     fun release() {

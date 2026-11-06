@@ -34,16 +34,20 @@ enum class SegId(val gear: Gear, val bayIn: Boolean, val targetDeg: Double, val 
 }
 
 object Truth {
-    /** Ⅰ: reverse straight to rear axle x = 3.52 then full lock right (button ramp 0.4 s), window [3.37, 3.69]. */
-    const val LOCK_I_X = 3.52
-    const val LOCK_I_MIN = 3.37
-    const val LOCK_I_MAX = 3.69
+    /**
+     * Ⅰ: reverse straight to rear axle x = 3.45 then full lock right (button ramp 0.4 s), window [3.30, 3.62]. Was 3.52 at
+     * 0.8 m/s: at the new default 0.5 m/s the car covers less ground during the 0.4 s ramp, so the turn starts later.
+     * Predictor.bestLock gives 3.45 for these numbers; DomainTest holds it to that.
+     */
+    const val LOCK_I_X = 3.45
+    const val LOCK_I_MIN = 3.30
+    const val LOCK_I_MAX = 3.62
 
-    /** Ⅱ / Ⅳ: forward to rear axle z = 0.85 then full lock (button ramp). */
-    const val LOCK_OUT_Z = 0.85
+    /** Ⅱ / Ⅳ: forward to rear axle z = 0.79 then full lock (button ramp). 0.85 at 0.8 m/s, same reason as above. */
+    const val LOCK_OUT_Z = 0.79
 
-    /** Straighten starts 2° early (the 0.4 s ramp adds about 2.7°). */
-    const val STRAIGHTEN_EARLY_DEG = 2.0
+    /** Straighten starts this many degrees early: 1.3° at 0.5 m/s, 2° at about 0.8 m/s. The 0.4 s ramp adds three quarters more of that with the speed. */
+    fun straightenEarly(v: Double) = 2.6 * v
 
     /** Stop in the bay: rear axle z = 3.80, nose 0.35 past the front line; window nose [0.10, 0.60]. */
     const val STOP_REAR_Z = 3.80
@@ -56,7 +60,7 @@ object Truth {
     const val PAST_MIN = 0.10
     const val PAST_MAX = 0.60
 
-    /** Braking distance from the set speed (0.2 s linear ramp). */
+    /** Braking distance from the set speed (the stop curve takes DECEL_S; half of it at full speed, whatever the curve's shape). */
     fun brake(v: Double) = v * Car.DECEL_S / 2
 
     fun lockAt(seg: SegId, lockX: Double = LOCK_I_X): Double =
@@ -67,12 +71,12 @@ object Truth {
             else -> 0.0
         }
 
-    fun straightenAt(seg: SegId): Double =
+    fun straightenAt(seg: SegId, v: Double = Car.SPEED_DEFAULT): Double =
         when (seg) {
-            SegId.I -> 90.0 - STRAIGHTEN_EARLY_DEG
-            SegId.II -> 180.0 - STRAIGHTEN_EARLY_DEG
-            SegId.III -> 90.0 + STRAIGHTEN_EARLY_DEG
-            SegId.IV -> 0.0 + STRAIGHTEN_EARLY_DEG
+            SegId.I -> 90.0 - straightenEarly(v)
+            SegId.II -> 180.0 - straightenEarly(v)
+            SegId.III -> 90.0 + straightenEarly(v)
+            SegId.IV -> 0.0 + straightenEarly(v)
             else -> 0.0
         }
 
@@ -86,13 +90,13 @@ object Truth {
         }
 
     /** Degrees left before the straighten point (+ = not there yet). */
-    fun toStraighten(seg: SegId, p: Pose): Double {
+    fun toStraighten(seg: SegId, p: Pose, v: Double = Car.SPEED_DEFAULT): Double {
         val d = p.psiDeg
         return when (seg) {
-            SegId.I -> straightenAt(seg) - d
-            SegId.II -> straightenAt(seg) - d
-            SegId.III -> d - straightenAt(seg)
-            SegId.IV -> Angles.wrapDeg(d) - straightenAt(seg)
+            SegId.I -> straightenAt(seg, v) - d
+            SegId.II -> straightenAt(seg, v) - d
+            SegId.III -> d - straightenAt(seg, v)
+            SegId.IV -> Angles.wrapDeg(d) - straightenAt(seg, v)
             else -> 99.0
         }
     }

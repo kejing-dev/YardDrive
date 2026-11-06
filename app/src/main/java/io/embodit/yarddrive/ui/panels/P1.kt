@@ -34,7 +34,6 @@ import com.pico.spatial.ui.design.CircularProgressDefaults
 import com.pico.spatial.ui.design.CircularProgressIndicator
 import com.pico.spatial.ui.design.Icon
 import com.pico.spatial.ui.design.PicoTheme
-import com.pico.spatial.ui.design.SegmentSlider
 import com.pico.spatial.ui.design.Slider
 import io.embodit.yarddrive.R
 import io.embodit.yarddrive.domain.Car
@@ -45,6 +44,7 @@ import io.embodit.yarddrive.domain.LookPoints
 import io.embodit.yarddrive.domain.Mode
 import io.embodit.yarddrive.domain.Outcome
 import io.embodit.yarddrive.domain.SegId
+import io.embodit.yarddrive.domain.Synth
 import io.embodit.yarddrive.domain.Yard
 import io.embodit.yarddrive.ui.Confirm
 import io.embodit.yarddrive.ui.ResultView
@@ -66,6 +66,12 @@ private fun m2(v: Double?): String = if (v == null) "—" else String.format(Loc
 /** P1 centre screen (design panels P1): one content at a time, P1 800 × 600 dp at scale 0.8. */
 @Composable
 internal fun P1Panel(state: YdUiState?, onEvent: (YdEvent) -> Unit) {
+    // Over the empty Stage (scene not up yet, no head pose) the glass is a flat #7B7B7B under dark label text, 2.7-3.1:1
+    // (profile D33): these two pages stand on a solid card with ink
+    if (state != null && !state.paused && (state.screen == Screen.LOADING || state.screen == Screen.UNAVAILABLE)) {
+        SolidCard(PanelSizes.P1_W, PanelSizes.P1_H) { if (state.screen == Screen.LOADING) Loading(state) else Unavailable(state, onEvent) }
+        return
+    }
     Glass(PanelSizes.P1_W, PanelSizes.P1_H) {
         if (state == null) return@Glass
         if (state.paused) {
@@ -73,8 +79,6 @@ internal fun P1Panel(state: YdUiState?, onEvent: (YdEvent) -> Unit) {
             return@Glass
         }
         when (state.screen) {
-            Screen.LOADING -> Loading(state)
-            Screen.UNAVAILABLE -> Unavailable(state, onEvent)
             Screen.SIT -> Sit(state, onEvent)
             Screen.LESSONS -> Lessons(state, onEvent)
             Screen.LIBRARY -> Library(state, onEvent)
@@ -92,27 +96,32 @@ internal fun P1Panel(state: YdUiState?, onEvent: (YdEvent) -> Unit) {
 @Composable
 private fun BackKey(state: YdUiState, onEvent: (YdEvent) -> Unit) = Key(state.t(Copy.back), "back", icon = R.drawable.ic_chevron_left) { onEvent(YdEvent.Back) }
 
+/** The sub line just after the car was placed (profile D29), or why it was not. */
+private fun YdUiState.seatSub(normal: String?): String? = seatNote?.let { t(it) } ?: if (reseatDone) t(Copy.reseatDone) else normal
+
+/** D21: the panels are fixed to the car, this brings the car and the panels back in front of you. */
 @Composable
-private fun MuteKey(state: YdUiState, onEvent: (YdEvent) -> Unit, name: String = "mute") =
-    Key(if (state.settings.muted) state.t(Copy.unmute) else state.t(Copy.mute), name, icon = if (state.settings.muted) R.drawable.ic_volume_up else R.drawable.ic_volume_off) { onEvent(YdEvent.Mute) }
+private fun ReseatKey(state: YdUiState, onEvent: (YdEvent) -> Unit, name: String = "reseat") =
+    Key(state.t(Copy.reseat), name, icon = R.drawable.ic_my_location) { onEvent(YdEvent.Reseat) }
 
 @Composable
 private fun ColumnScope.Loading(state: YdUiState) {
-    TopBar(state.t(Copy.appTitle), state.t(Copy.tagline))
+    Line(state.t(Copy.appTitle), "title", YdType.headline, color = YdColors.Ink)
+    Line(state.t(Copy.tagline), "titleSub", YdType.small, color = YdColors.Ink)
     Spacer(Modifier.weight(1f))
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-        CircularProgressIndicator(modifier = Modifier.size(36.dp), color = PicoTheme.colorScheme.labelPrimary, progressSize = CircularProgressDefaults.circleProgressSize(36.dp))
+        CircularProgressIndicator(modifier = Modifier.size(36.dp), color = YdColors.Ink, progressSize = CircularProgressDefaults.circleProgressSize(36.dp))
         Spacer(Modifier.width(16.dp))
-        Line(state.t(Copy.loading), "loading", YdType.title)
+        Line(state.t(Copy.loading), "loading", YdType.title, color = YdColors.Ink)
     }
     Spacer(Modifier.weight(1f))
 }
 
 @Composable
 private fun ColumnScope.Unavailable(state: YdUiState, onEvent: (YdEvent) -> Unit) {
-    TopBar(state.t(Copy.appTitle), null)
+    Line(state.t(Copy.appTitle), "title", YdType.headline, color = YdColors.Ink)
     Spacer(Modifier.height(12.dp))
-    Line(state.t(Copy.unavailable), "unavailable", YdType.body, lines = 3)
+    Line(state.t(Copy.unavailable), "unavailable", YdType.body, color = YdColors.Ink, lines = 3)
     Spacer(Modifier.weight(1f))
     Key(state.t(Copy.quit), "quit", icon = R.drawable.ic_logout, kind = KeyKind.PRIMARY, height = 56.dp, modifier = Modifier.fillMaxWidth()) { onEvent(YdEvent.Exit) }
 }
@@ -123,7 +132,7 @@ private fun SeatSeg(state: YdUiState, onEvent: (YdEvent) -> Unit) =
 
 @Composable
 private fun ColumnScope.Sit(state: YdUiState, onEvent: (YdEvent) -> Unit) {
-    TopBar(state.t(Copy.appTitle), state.t(Copy.tagline))
+    TopBar(state.t(Copy.appTitle), state.seatSub(state.t(Copy.tagline)))
     Spacer(Modifier.height(12.dp))
     Line(state.t(Copy.sitHint), "sitHint", YdType.body, lines = 2)
     Spacer(Modifier.height(16.dp))
@@ -136,13 +145,14 @@ private fun ColumnScope.Sit(state: YdUiState, onEvent: (YdEvent) -> Unit) {
 
 @Composable
 private fun ColumnScope.Home(state: YdUiState, onEvent: (YdEvent) -> Unit) {
-    TopBar(state.t(Copy.appTitle), state.t(Copy.tagline)) {
+    TopBar(state.t(Copy.appTitle), state.seatSub(state.t(Copy.tagline))) {
+        ReseatKey(state, onEvent)
         MuteKey(state, onEvent)
         Key(state.t(Copy.settings), "settings", icon = R.drawable.ic_settings) { onEvent(YdEvent.OpenSettings) }
     }
     if (state.eyeOff) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Line(state.t(Copy.eyeOff), "eyeOff", YdType.small, modifier = Modifier.weight(1f), lines = 2)
+            Line(state.t(if (state.eyeNote) Copy.eyeGoSettings else Copy.eyeOff), "eyeOff", YdType.small, modifier = Modifier.weight(1f), lines = 2)
             Key(state.t(Copy.turnOn), "eyeOn") { onEvent(YdEvent.TurnOnEye) }
         }
     } else Spacer(Modifier.height(8.dp))
@@ -257,7 +267,7 @@ private fun ColumnScope.FreePick(state: YdUiState, onEvent: (YdEvent) -> Unit) {
 
 @Composable
 private fun ColumnScope.Paused(state: YdUiState, onEvent: (YdEvent) -> Unit) {
-    TopBar(state.t(Copy.paused), state.t(Copy.pausedSub))
+    TopBar(state.t(Copy.paused), state.seatSub(state.t(Copy.pausedSub)))
     Spacer(Modifier.height(16.dp))
     Key(state.t(Copy.resume), "resume", icon = R.drawable.ic_play_arrow, kind = KeyKind.PRIMARY, height = 56.dp, modifier = Modifier.fillMaxWidth()) { onEvent(YdEvent.Resume) }
     Spacer(Modifier.height(12.dp))
@@ -266,7 +276,17 @@ private fun ColumnScope.Paused(state: YdUiState, onEvent: (YdEvent) -> Unit) {
         if (state.screen == Screen.RUN && !state.run.exam) Key(state.t(Copy.backToPoint), "backPoint", height = 56.dp, modifier = Modifier.weight(1f)) { onEvent(YdEvent.BackToPoint) }
     }
     Spacer(Modifier.height(12.dp))
-    Key(state.t(Copy.home), "home", icon = R.drawable.ic_home, height = 56.dp, modifier = Modifier.fillMaxWidth()) { onEvent(YdEvent.Home) }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Key(state.t(Copy.reseat), "reseat", icon = R.drawable.ic_my_location, height = 56.dp, modifier = Modifier.weight(1f)) { onEvent(YdEvent.Reseat) }
+        Key(state.t(Copy.home), "home", icon = R.drawable.ic_home, height = 56.dp, modifier = Modifier.weight(1f)) { onEvent(YdEvent.Home) }
+    }
+    // D44 / q7-7: Restart run and Home half-way lose the run, so they ask here first
+    Spacer(Modifier.weight(1f))
+    when (state.confirm) {
+        Confirm.RESTART -> ConfirmRow(state.t(Copy.restartAsk), state.t(Copy.restart), "restartYes", R.drawable.ic_replay, state, onEvent) { onEvent(YdEvent.ConfirmRestart) }
+        Confirm.HOME -> ConfirmRow(state.t(Copy.homeAsk), state.t(Copy.home), "homeYes", R.drawable.ic_home, state, onEvent) { onEvent(YdEvent.ConfirmHome) }
+        else -> Unit
+    }
 }
 
 @Composable
@@ -313,14 +333,19 @@ private fun ColumnScope.ResultMain(state: YdUiState, r: ResultView, onEvent: (Yd
         r.tour != null -> Line(state.f(Copy.tourResult, r.tour.first, r.tour.second), "tourLine", YdType.body)
         r.lane != null -> Line(state.f(Copy.laneResult, r.lane.first, state.t(if (r.lane.second) Copy.yes else Copy.no), state.t(if (r.lane.third) Copy.yes else Copy.no)), "laneLine", YdType.body)
         else -> {
-            val line = if (r.stops > 0) state.f(Copy.stopsLine, r.stops, r.stops * 5, mmss(r.timeS)) else state.f(Copy.timeLine, mmss(r.timeS))
+            val line = when {
+                r.stops > 0 && r.exam -> state.f(Copy.stopsLine, r.stops, r.stops * 5, mmss(r.timeS))
+                r.stops > 0 -> state.f(Copy.stopsLineLesson, r.stops, mmss(r.timeS))
+                else -> state.f(Copy.timeLine, mmss(r.timeS))
+            }
             Line(line + if (r.unscored) " · " + state.t(Copy.unscoredLine) else "", "deductions", YdType.label)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 r.segs.forEachIndexed { i, s ->
                     val done = r.segOk.getOrElse(i) { false }
-                    val txt = s.zh.substringBefore(' ').let { n -> if (state.zh) n else s.en.substringBefore(' ') } + if (done) " ✓ " + mmss(r.segTime.getOrElse(i) { 0.0 }) else " —"
-                    if (done) Badge(txt, "seg_$i", YdColors.PassText) else Chip(txt, "seg_$i")
+                    val failed = !done && r.failSeg == i
+                    val txt = s.zh.substringBefore(' ').let { n -> if (state.zh) n else s.en.substringBefore(' ') } + if (done) " ✓ " + mmss(r.segTime.getOrElse(i) { 0.0 }) else if (failed) " ✗" else " —"
+                    if (done) Badge(txt, "seg_$i", YdColors.PassText) else if (failed) Badge(txt, "seg_$i", YdColors.FailText) else Chip(txt, "seg_$i")
                 }
             }
         }
@@ -465,7 +490,7 @@ private fun ColumnScope.Scorecard(state: YdUiState, onEvent: (YdEvent) -> Unit) 
     }
     if (sv != null && sv.count > 0) Line(state.f(Copy.medianGaps, m2(sv.gapR), m2(sv.gapL)), "medianGaps", YdType.label)
     Spacer(Modifier.weight(1f))
-    if (state.confirm == Confirm.CLEAR) ConfirmRow(state.t(Copy.clearAsk), state.t(Copy.clear), "clearYes", state, onEvent) { onEvent(YdEvent.ConfirmClear) }
+    if (state.confirm == Confirm.CLEAR) ConfirmRow(state.t(Copy.clearAsk), state.t(Copy.clear), "clearYes", R.drawable.ic_delete, state, onEvent) { onEvent(YdEvent.ConfirmClear) }
     else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Key(state.t(Copy.clearScores), "clearScores", icon = R.drawable.ic_delete) { onEvent(YdEvent.AskClear) }
         Line(state.t(Copy.asksAgain), "asksAgain", YdType.small)
@@ -473,12 +498,13 @@ private fun ColumnScope.Scorecard(state: YdUiState, onEvent: (YdEvent) -> Unit) 
 }
 
 @Composable
-private fun ConfirmRow(question: String, yes: String, name: String, state: YdUiState, onEvent: (YdEvent) -> Unit, onYes: () -> Unit) {
+private fun ConfirmRow(question: String, yes: String, name: String, icon: Int, state: YdUiState, onEvent: (YdEvent) -> Unit, onYes: () -> Unit) {
     // a confirm row in the error colour as the fill with dark ink (D13: never red text on grey)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(18.dp)).background(YdColors.Danger).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Line(question, "${name}_q", YdType.title, color = YdColors.Ink, modifier = Modifier.weight(1f))
+        // bold: thin strokes blur to 4.04:1 at 2160 px (q1-7)
+        Line(question, "${name}_q", YdType.titleBold, color = YdColors.Ink, modifier = Modifier.weight(1f))
         Key(state.t(Copy.cancel), "${name}_cancel") { onEvent(YdEvent.CancelConfirm) }
-        Key(yes, name, icon = R.drawable.ic_logout, kind = KeyKind.PRIMARY, onClick = onYes)
+        Key(yes, name, icon = icon, kind = KeyKind.PRIMARY, onClick = onYes)
     }
 }
 
@@ -487,41 +513,35 @@ private fun ConfirmRow(question: String, yes: String, name: String, state: YdUiS
 @Composable
 private fun ColumnScope.SettingsPanel(state: YdUiState, onEvent: (YdEvent) -> Unit) {
     val st = state.settings
-    fun put(s: io.embodit.yarddrive.domain.Settings) = onEvent(YdEvent.SetSettings(s))
-    TopBar(state.t(Copy.settings), null) {
+    // the change only, never st.copy: the Slider keeps its first onValueChange, st in there is the page as it first opened (k4-1)
+    fun put(change: (io.embodit.yarddrive.domain.Settings) -> io.embodit.yarddrive.domain.Settings) = onEvent(YdEvent.SetSettings(change))
+    // the re-seat lines can be long next to the page switch, mute and back keys: two lines then (sweep v0.1.7, "No head tracking yet…")
+    TopBar(state.t(Copy.settings), state.seatSub(null), subLines = if (state.seatNote != null) 2 else 1) {
         Seg(listOf(state.t(Copy.pagePractice) to (state.settingsPage == 0), state.t(Copy.pageSystem) to (state.settingsPage == 1)), "setPage", 100.dp) { onEvent(YdEvent.SettingsPage(it)) }
+        // the mute key lives up here on both pages: next to the volume slider it left the slider too narrow to aim at (B19, R1)
+        MuteKey(state, onEvent, "set_mute")
         BackKey(state, onEvent)
     }
     Spacer(Modifier.height(8.dp))
     val items: List<@Composable (Modifier) -> Unit> =
         if (state.settingsPage == 0) listOf(
             { m -> FormRow(state.t(Copy.seatHeight), null, "set_seat", m) { SeatSeg(state, onEvent) } },
-            { m -> FormRow(state.t(Copy.speed), String.format(Locale.US, "%.1f m/s", st.speed), "set_speed", m) { Slider(value = st.speed.toFloat(), onValueChange = { put(st.copy(speed = (Math.round(it * 10) / 10.0))) }, valueRange = Car.SPEED_MIN.toFloat()..Car.SPEED_MAX.toFloat(), modifier = Modifier.width(150.dp).probe("set_speed_slider")) } },
-            { m -> FormRow(state.t(Copy.startGap), state.t(Copy.startGapSub), "set_gap", m) { Seg(Yard.GAPS.map { g -> String.format(Locale.US, "%.1f", g) to (abs(st.gap - g) < 1e-6) }, "gap", 52.dp) { put(st.copy(gap = Yard.GAPS[it])) } } },
-            { m -> FormRow(state.t(Copy.coachCues), null, "set_hints", m) { Toggle(st.hints, "sw_hints") { put(st.copy(hints = it)) } } },
-            { m -> FormRow(state.t(Copy.topViewSet), null, "set_top", m) { Toggle(st.topView, "sw_top") { put(st.copy(topView = it)) } } },
-            { m -> FormRow(state.t(Copy.polesSet), state.t(Copy.polesSub), "set_poles", m) { Toggle(st.poles, "sw_poles") { put(st.copy(poles = it)) } } },
-            { m -> FormRow(state.t(Copy.comfort), null, "set_comfort", m) { Toggle(st.comfort, "sw_comfort") { put(st.copy(comfort = it)) } } },
-            { m ->
-                FormRow(state.t(Copy.mirrorAdj), state.f(Copy.mirrorSub, st.mirrorOut, st.mirrorPitch), "set_mirror", m) {
-                    Slider(value = st.mirrorOut.toFloat(), onValueChange = { put(st.copy(mirrorOut = it.roundToInt())) }, valueRange = 0f..15f, modifier = Modifier.width(84.dp).probe("set_mirror_out"))
-                    Slider(value = st.mirrorPitch.toFloat(), onValueChange = { put(st.copy(mirrorPitch = it.roundToInt())) }, valueRange = -20f..0f, modifier = Modifier.width(84.dp).probe("set_mirror_pitch"))
-                }
-            },
-            { m -> FormRow(state.t(Copy.strictSet), state.t(Copy.strictSub), "set_strict", m) { Toggle(st.strict, "sw_strict") { put(st.copy(strict = it)) } } },
-            { m -> FormRow(state.t(Copy.coachHand), state.t(Copy.coachHandSub), "set_hand", m) { Toggle(st.coachHand, "sw_coachHand") { put(st.copy(coachHand = it)) } } },
+            { m -> FormRow(state.t(Copy.speed), String.format(Locale.US, "%.1f m/s", st.speed), "set_speed", m) { Slider(value = st.speed.toFloat(), onValueChange = { put { c -> c.copy(speed = (Math.round(it * 10) / 10.0)) } }, valueRange = Car.SPEED_MIN.toFloat()..Car.SPEED_MAX.toFloat(), modifier = Modifier.width(150.dp).height(48.dp).probe("set_speed_slider")) } },
+            { m -> FormRow(state.t(Copy.startGap), state.t(Copy.startGapSub), "set_gap", m) { Seg(Yard.GAPS.map { g -> String.format(Locale.US, "%.1f", g) to (abs(st.gap - g) < 1e-6) }, "gap", 52.dp) { put { c -> c.copy(gap = Yard.GAPS[it]) } } } },
+            { m -> FormRow(state.t(Copy.coachCues), null, "set_hints", m) { Toggle(st.hints, "sw_hints") { put { c -> c.copy(hints = it) } } } },
+            { m -> FormRow(state.t(Copy.topViewSet), null, "set_top", m) { Toggle(st.topView, "sw_top") { put { c -> c.copy(topView = it) } } } },
+            { m -> FormRow(state.t(Copy.polesSet), state.t(Copy.polesSub), "set_poles", m) { Toggle(st.poles, "sw_poles") { put { c -> c.copy(poles = it) } } } },
+            { m -> FormRow(state.t(Copy.comfort), null, "set_comfort", m) { Toggle(st.comfort, "sw_comfort") { put { c -> c.copy(comfort = it) } } } },
+            { m -> FormRow(state.t(Copy.mirrorOutSet), "${st.mirrorOut}°", "set_mirror_out_row", m) { Slider(value = st.mirrorOut.toFloat(), onValueChange = { put { c -> c.copy(mirrorOut = it.roundToInt()) } }, valueRange = 0f..15f, modifier = Modifier.width(150.dp).height(48.dp).probe("set_mirror_out")) } },
+            { m -> FormRow(state.t(Copy.mirrorPitchSet), "${st.mirrorPitch}°", "set_mirror_pitch_row", m) { Slider(value = st.mirrorPitch.toFloat(), onValueChange = { put { c -> c.copy(mirrorPitch = it.roundToInt()) } }, valueRange = -20f..0f, modifier = Modifier.width(150.dp).height(48.dp).probe("set_mirror_pitch")) } },
+            { m -> FormRow(state.t(Copy.strictSet), state.t(Copy.strictSub), "set_strict", m) { Toggle(st.strict, "sw_strict") { put { c -> c.copy(strict = it) } } } },
         ) else listOf(
-            { m -> FormRow(state.t(Copy.language), null, "set_lang", m) { Seg(listOf("中文" to st.zh, "English" to !st.zh), "lang", 88.dp) { put(st.copy(zh = it == 0)) } } },
-            { m -> FormRow(state.t(Copy.input), null, "set_input", m) { Seg(Copy.inputs.mapIndexed { i, s -> state.t(s) to (st.hands == (i == 1)) }, "input", 116.dp) { put(st.copy(hands = it == 1)) } } },
-            { m -> FormRow(state.t(Copy.handThrottle), state.t(Copy.handThrottleSub), "set_throttle", m) { Seg(Copy.throttles.mapIndexed { i, s -> state.t(s) to (st.pinchHold == (i == 1)) }, "throttle", 120.dp, enabled = st.hands) { put(st.copy(pinchHold = it == 1)) } } },
-            { m -> FormRow(state.t(Copy.gazeDot), state.t(Copy.gazeDotSub), "set_gaze", m) { Toggle(st.gazeDot, "sw_gaze") { put(st.copy(gazeDot = it)) } } },
-            { m ->
-                FormRow(state.t(Copy.volume), state.t(Copy.volumeSub), "set_volume", m) {
-                    SegmentSlider(initialStep = st.volume, segmentCount = 3, onStepChange = { v -> put(st.copy(volume = v.coerceIn(0, 2))) }, modifier = Modifier.width(110.dp).probe("set_volume_slider"))
-                    MuteKey(state, onEvent, "set_mute")
-                }
-            },
-            { m -> FormRow(state.t(Copy.reseat), state.t(Copy.reseatSub), "set_reseat", m) { Key(state.t(Copy.reseat), "reseat", icon = R.drawable.ic_my_location) { onEvent(YdEvent.Reseat) } } },
+            { m -> FormRow(state.t(Copy.language), null, "set_lang", m) { Seg(listOf("中文" to st.zh, "English" to !st.zh), "lang", 88.dp) { put { c -> c.copy(zh = it == 0) } } } },
+            { m -> FormRow(state.t(Copy.gazeDot), state.t(Copy.gazeDotSub), "set_gaze", m) { Toggle(st.gazeDot, "sw_gaze") { put { c -> c.copy(gazeDot = it) } } } },
+            { m -> FormRow(state.t(Copy.volume), "${st.master}%", "set_volume", m) { Slider(value = st.master.toFloat(), onValueChange = { put { c -> c.copy(master = Synth.snap(it)) } }, valueRange = 0f..100f, modifier = Modifier.width(150.dp).height(48.dp).probe("set_volume_slider")) } },
+            { m -> FormRow(state.t(Copy.carSound), "${st.carVol}%", "set_car", m) { Slider(value = st.carVol.toFloat(), onValueChange = { put { c -> c.copy(carVol = Synth.snap(it)) } }, valueRange = 0f..100f, modifier = Modifier.width(150.dp).height(48.dp).probe("set_car_slider")) } },
+            { m -> FormRow(state.t(Copy.cueSound), "${st.cueVol}%", "set_cue", m) { Slider(value = st.cueVol.toFloat(), onValueChange = { put { c -> c.copy(cueVol = Synth.snap(it)) } }, valueRange = 0f..100f, modifier = Modifier.width(150.dp).height(48.dp).probe("set_cue_slider")) } },
+            { m -> FormRow(state.t(Copy.reseat), state.t(Copy.reseatSub), "set_reseat", m) { ReseatKey(state, onEvent, "set_reseat_key") } },
             { m -> FormRow(state.t(Copy.clearScores), state.t(Copy.clearSub), "set_clear", m) { Key(state.t(Copy.clear), "clear", icon = R.drawable.ic_delete) { onEvent(YdEvent.OpenScorecard); onEvent(YdEvent.AskClear) } } },
             { m -> FormRow(state.t(Copy.about), state.f(Copy.aboutSub, state.version), "set_about", m) { Key(state.t(Copy.open), "about", icon = R.drawable.ic_info) { onEvent(YdEvent.About) } } },
         )
@@ -531,7 +551,7 @@ private fun ColumnScope.SettingsPanel(state: YdUiState, onEvent: (YdEvent) -> Un
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { for (i in half until items.size) items[i](Modifier.fillMaxWidth()) }
     }
     Spacer(Modifier.weight(1f))
-    if (state.confirm == Confirm.EXIT) ConfirmRow(state.t(Copy.exitConfirm), state.t(Copy.quit), "quitYes", state, onEvent) { onEvent(YdEvent.Exit) }
+    if (state.confirm == Confirm.EXIT) ConfirmRow(state.t(Copy.exitConfirm), state.t(Copy.quit), "quitYes", R.drawable.ic_logout, state, onEvent) { onEvent(YdEvent.Exit) }
     else Key(state.t(Copy.quitApp), "quitApp", icon = R.drawable.ic_logout, kind = KeyKind.DANGER, height = 56.dp, modifier = Modifier.fillMaxWidth()) { onEvent(YdEvent.AskExit) }
 }
 

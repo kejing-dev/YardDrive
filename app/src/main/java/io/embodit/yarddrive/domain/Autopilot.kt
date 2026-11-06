@@ -83,7 +83,7 @@ class Autopilot(private val lockEarly: Double = 0.0, private val followAdvice: B
                     easeUntil = -1.0
                 }
             }
-            if (Truth.toStraighten(s, p) <= 0) {
+            if (Truth.toStraighten(s, p, run.sim.vSet) <= 0) {
                 run.steerButton(0.0)
                 straight = true
             }
@@ -119,7 +119,7 @@ class Autopilot(private val lockEarly: Double = 0.0, private val followAdvice: B
                     s.steerTo(sign * Car.WHEEL_MAX)
                     phase = 1
                 }
-                if (phase == 1 && Truth.toStraighten(seg, p) <= 0) {
+                if (phase == 1 && Truth.toStraighten(seg, p, vSet) <= 0) {
                     s.steerTo(0.0)
                     phase = 2
                 }

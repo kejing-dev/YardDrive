@@ -33,12 +33,29 @@ object Copy {
     val backToPoint = t("回到上一点位", "Back to last point")
     val segDone = t("%s 搞定 · 下一段：%s，切 %s", "%s done · next: %s, shift to %s")
     val gearLocked = t("停下来再换挡", "Stop before you shift")
-    val handMode = t("右手捏住方向盘转。点「走」车就动，再点停。", "Pinch the wheel with your right hand. Tap Go to move, tap again to stop.")
+    val goNotHere = t("这里车不开。想开车，去课程或模拟考试", "The car stays put here. To drive, open a lesson or the test")
+    val goDemo = t("这是示范。点「跳过」自己开", "This is a demo. Tap Skip to drive yourself")
+    val goReplay = t("这是回放，车不用你开", "This is a replay. Nothing to drive")
+    val goLine = t("压线了。选「回到上一点位」或「重来这次」", "Line touched. Pick Back to last point or Restart run")
+    val goDone = t("这局结束了，点「再来一次」", "This run's over. Tap Go again")
+    val goLost = t("追踪丢了，等头显找回位置", "Tracking lost. Wait for the headset to find you")
+
+    /** The same reasons, short, in one line under the grey Go key (D43: say it before you tap, q7-3). */
+    val goWhyNotHere = t("这里不开车", "No driving here")
+    val goWhyDemo = t("示范中，点「跳过」自己开", "Demo. Tap Skip to drive")
+    val goWhyReplay = t("回放中，不用开", "Replay. Nothing to drive")
+    val goWhyLine = t("压线了，先选怎么接着练", "Line touched. Pick what's next")
+    val goWhyDone = t("这局结束了", "This run's over")
+    val goWhyLost = t("追踪丢了，稍等", "Tracking lost. Wait")
+
+    /** D44: Restart / Home half-way through a run (q7-7). */
+    val restartAsk = t("这次的进度会丢，重来吗？", "You'll lose this run. Restart?")
+    val homeAsk = t("这次的进度会丢，回主页吗？", "You'll lose this run. Go home?")
     val stepMode = t("步进：按一下走 0.3 m", "Step mode: one press moves 0.3 m")
     val exitConfirm = t("退出倒车入库？", "Quit Yard Drive?")
     val eyeOff = t("眼动没开，「看了哪里」按头的方向记。不影响分数。", "Eye tracking is off, so 'where you looked' uses head direction. Scores are unaffected.")
-    val seatNote = t("座椅 %s · 左镜壳下沿对着眼前 %s m · 引擎盖盖住 %s m 以内", "Seat %s · left mirror edge meets the ground %s m ahead · the bonnet hides the next %s m")
-    val chantDelta = t("照口诀会%s %d cm", "The chant would be %d cm %s here")
+    val seatNote = t("座椅 %s · 左镜壳下沿对着眼前 %s m · 引擎盖盖住 %s m 以内", "Seat %s · left mirror edge meets the ground %s\u00A0m ahead · the bonnet hides the next %s\u00A0m")
+    val chantDelta = t("照口诀会%s %d cm", "the chant's %d cm %s")
     val advice = t("右打死老是早：控制线到镜壳下面再打，别提前。", "Your right full lock keeps coming early: wait till the line is under the mirror.")
     val mockFail = t("车身出线，考试不合格", "Body over the line. Test failed")
     val freeStart = t("这次起点偏了，先看左窗控制线在哪。", "Start's a bit off this time. Find the control line in the left window first.")
@@ -83,14 +100,13 @@ object Copy {
         SegId.III to t("直退进库，看前沿", "Straight back in, mind the nose"),
         SegId.IV to t("直行，看右窗控制线", "Straight on, watch the control line on the right"),
     )
-    val ready = t("切 %s，按住 A 就走", "Shift to %s, hold A to go")
-    val readyHand = t("切 %s，点「走」", "Shift to %s, tap Go")
+    val ready = t("切 %s，点「走」", "Shift to %s, then tap Go")
+    val readyStep = t("切 %s，按一下走 0.3 m", "Shift to %s. One press moves 0.3 m")
     val shiftFirst = t("先切 %s", "Shift to %s first")
-    val wrongGearSub = t("挡位不对。按 A 车也会按现在的挡走", "Wrong gear. A still moves the car in this gear")
-    val stopped = t("停着。再按 A 就走", "Stopped. Hold A to go on")
-    val stoppedHand = t("停着。点「走」继续", "Stopped. Tap Go to carry on")
+    val wrongGearSub = t("点「R / D」或手柄 Y 换挡，再点「走」", "Tap R / D or press Y, then tap Go")
+    val stopped = t("停着。点「走」继续", "Stopped. Tap Go to carry on")
     val autoStopped = t("到点了，车自己停了", "You're at the point. Car stopped itself")
-    val autoStoppedSub = t("看好了再按 A 继续", "Have a good look, then hold A to go on")
+    val autoStoppedSub = t("看好了再点「走」", "Have a good look, then tap Go")
     val settling = t("停稳了 ✓", "Settled ✓")
     val settlingSub = t("别动，1 秒就算这段", "Hold still. One second and it counts")
     val toGo = t("还有 %.1f m", "%.1f m to go")
@@ -148,11 +164,12 @@ object Copy {
     val nextStep = t("下一步", "Next")
     val tourLines = listOf(
         t("黄线是库：左边线、右边线、库底线。", "Yellow is the bay: left line, right line, back line."),
+        t("黄黑的杆是库角，练车场才有，考场只有线。", "The yellow-black poles mark the corners. Practice yards have them; the test has only lines."),
         t("白虚线是库前线，两边的白线是它的延长线。", "The dashed white line is the bay front; the white lines either side extend it."),
         t("控制线：车头刚过它就是起点。", "Control line: just past it with the nose is your start."),
         t("最远那条白线是道路边线，别压。", "The far white line is the road edge. Stay off it."),
-        t("黄黑的杆是库角，练车场才有，考场只有线。", "The yellow-black poles mark the corners. Practice yards have them; the test has only lines."),
     )
+    val tourInBay = t("在左右镜和俯视镜里看。", "Look in the side mirrors and the top view.")
 
     // ---- P1
     val lessons = t("课程", "Lessons")
@@ -195,6 +212,7 @@ object Copy {
     val resultTabs = listOf(t("结果", "Result"), t("点位", "Points"), t("轨迹", "Path"))
     val trialOf = t("第 %d / %d 次", "Try %d / %d")
     val stopsLine = t("中途停车 ×%d −%d · 用时 %s", "Stopped mid-way ×%d −%d · %s")
+    val stopsLineLesson = t("中途停车 ×%d（课程不扣）· 用时 %s", "Stopped mid-way ×%d (no deduction in lessons) · %s")
     val timeLine = t("用时 %s", "Time %s")
     val unscoredLine = t("这次不计成绩", "This one's unscored")
     val pointCol = t("点位", "Point")
@@ -223,13 +241,15 @@ object Copy {
     val clear = t("清除", "Clear")
     val asksAgain = t("（会再问一次）", "(asks once more)")
     val freePick = t("挑个难度", "Pick a level")
-    val freePickSub = t("5 次一组，默认考试规则", "Runs of 5, test rules by default")
+    val freePickSub = t("5 次一组，默认宽松规则", "Runs of 5, easy rules by default")
     val diffs = listOf(
         t("难度 1 · 起点偏一点点", "Level 1 · start off by a hair"),
         t("难度 2 · 偏 20 cm 以内，歪 2.5°", "Level 2 · up to 20 cm off, 2.5° crooked"),
         t("难度 3 · 偏 30 cm，歪 4°，座椅也会变", "Level 3 · 30 cm off, 4° crooked, seat may change"),
     )
     val seatHintFree = t("这次教练把座椅调%s了", "The coach set the seat %s this time")
+    val seatHigher = t("高", "higher")
+    val seatLower = t("低", "lower")
     val tourTitle = t("先坐好，别急着动", "Sit down first, don't touch anything")
     val tourSub = t("课程 1 · 口诀是别人的，眼睛是你的", "Lesson 1 · The chant is theirs. The eyes are yours")
     val tourBody = t("这一课车不动。先调座椅高度，看引擎盖盖住的地面怎么前后移；再依次看四面：左镜、右镜、内镜、回头看后窗。", "The car stays put this lesson. Set the seat and watch the ground the bonnet hides move. Then look at all four: left mirror, right mirror, inside mirror, over your shoulder.")
@@ -253,24 +273,25 @@ object Copy {
     val polesSet = t("库角杆", "Corner poles")
     val polesSub = t("课程 7–8 与考试关", "Off in lessons 7–8 and test")
     val comfort = t("晕动减轻", "Comfort vignette")
-    val mirrorAdj = t("镜子调节", "Mirror angle")
-    val mirrorSub = t("外偏 %d° · 俯仰 %d°", "Out %d° · down %d°")
+    val mirrorOutSet = t("镜子外偏", "Mirror out")
+    val mirrorPitchSet = t("镜子俯仰", "Mirror tilt")
     val strictSet = t("严格", "Strict")
     val strictSub = t("中途停车即不合格（有的考场这么判）", "Any mid-way stop fails (some centres do this)")
-    val coachHand = t("教练手", "Coach's hand")
-    val coachHandSub = t("示范时方向盘上有只手带你转", "A ghost hand turns the wheel in demos")
     val language = t("语言", "Language")
-    val input = t("输入", "Input")
-    val inputs = listOf(t("手柄", "Controllers"), t("手势", "Hands"))
-    val handThrottle = t("手势油门", "Hand throttle")
-    val handThrottleSub = t("仅手势模式", "Hand mode only")
-    val throttles = listOf(t("点按走 / 停", "Tap Go"), t("左手捏合", "Hold pinch"))
     val gazeDot = t("显示目光", "Show gaze dot")
     val gazeDotSub = t("点位库里自动开", "On in look-point library")
     val volume = t("主音量", "Master volume")
-    val volumeSub = t("低 / 中 / 高三档", "Low / mid / high")
+    val carSound = t("车声", "Car sounds")
+    val cueSound = t("提示音", "Cue sounds")
     val reseat = t("回正", "Re-seat")
-    val reseatSub = t("按现在的头位置重新摆车", "Re-place the car at your head")
+    val reseatSub = t("车和面板摆回面前", "Car and panels back to you")
+    val lookAhead = t("看正前方，别动 · %.1f s", "Look straight ahead, hold still · %.1f s")
+    val reseatDone = t("摆好了 ✓", "Placed ✓")
+    val seatNoHead = t("还没拿到头的位置，等一下再按", "No head tracking yet. Press again soon")
+    val seatLost = t("追踪丢了，再按一次回正", "Lost tracking. Press Re-seat again")
+    val panelLeft = t("面板在你左边，转回来就能看到", "The panel's on your left. Turn back to see it")
+    val panelRight = t("面板在你右边，转回来就能看到", "The panel's on your right. Turn back to see it")
+    val eyeGoSettings = t("系统不再弹窗了。去系统设置 → 应用 → 倒车入库里开，再回来。", "The system won't ask again. Turn it on in Settings → Apps → Yard Drive, then come back.")
     val clearSub = t("会再问一次", "Asks once more")
     val aboutSub = t("v%s · 免责与出处", "v%s · Disclaimer & sources")
 
@@ -279,7 +300,7 @@ object Copy {
 
     val lessonList8 = listOf(
         Lesson(1, t("先坐好，别急着动", "Sit down first, don't touch anything"), t("口诀是别人的，眼睛是你的", "The chant is theirs. The eyes are yours"), 1),
-        Lesson(2, t("方向盘在你手里", "The wheel is yours"), t("一圈半到底，手记住", "One and a half turns, let your hands remember"), 1),
+        Lesson(2, t("打方向试试", "Try the steering"), t("点一下就打到底，看圈数", "One tap goes all the way. Watch the turns"), 1),
         Lesson(3, t("库角出来了", "Here comes the corner"), t("看右镜，留一拳", "Right mirror, leave a fist"), 2),
         Lesson(4, t("出库，别压库角", "Out you go, mind the corner"), t("引擎盖盖住线，再打", "Wait till the bonnet hides the line"), 2),
         Lesson(5, t("换个方向再来", "Same thing, other side"), t("右镜压线左打死", "Right mirror on the line, full lock left"), 2),
@@ -308,13 +329,12 @@ object Copy {
 
     val chantEarly = t("早", "early")
     val chantLate = t("晚", "late")
-    val chantSpotOn = t("，刚好", ". Spot on")
+    val chantSpotOn = t("，刚好", ". Spot\u00A0on")
     val chantThisCar = t("这辆车上：", "This car: ")
     val chantDeep = t("这辆车上：照口诀会停深 %d cm", "This car: the chant parks you %d cm too deep")
     val chantPast = t("这辆车上：口诀准，前轮过线 %.2f m", "This car: the chant is right, front wheels %.2f m past")
     val mrdChant = t("口诀 %s %d cm", "chant %d cm %s")
     val corner = t("库角", "Corner")
-    val turns = t("圈数", "Turns")
     val hubCentred = t("回正", "Centred")
     val hubLeft = t("左 %s 圈", "L %s turns")
     val hubRight = t("右 %s 圈", "R %s turns")

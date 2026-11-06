@@ -41,6 +41,11 @@ internal object Palette {
     const val RED = 21
     const val KNOB = 22
     const val SKIN = 23
+    const val FLASH_YELLOW = 24
+    const val FLASH_WHITE = 25
+    const val GLASS = 26
+    const val LIGHT_GREY = 27
+    const val TAIL_RED = 28
 
     private val COLORS =
         intArrayOf(
@@ -53,7 +58,7 @@ internal object Palette {
             0xFF15171A.toInt(), // tyre
             0xFF1E2125.toInt(), // mirror frame
             0xFF1A1C1F.toInt(), // wheel rim
-            0xFF3D4248.toInt(), // grip ring highlight
+            0xFF3D4248.toInt(), // hub centre pad
             0xFFF2C94C.toInt(), // bay line / pole yellow
             0xFFF2F2EE.toInt(), // white lines
             0xFF1E2125.toInt(), // pole dark band
@@ -67,7 +72,12 @@ internal object Palette {
             0xFF5BD6C8.toInt(), // ideal path cyan
             0xFFFF3B30.toInt(), // line flash red
             0xFF1A1C1F.toInt(), // gear knob
-            0xFFE0B49A.toInt(), // coach hand skin
+            0xFFE0B49A.toInt(), // skin (unused since the coach's hand went, r5)
+            0xFFFFE94A.toInt(), // yellow line flashing (yard tour)
+            0xFFFFFFFF.toInt(), // white line flashing (yard tour)
+            0xFF2A333C.toInt(), // coach car glass
+            0xFFB8BEC4.toInt(), // hub caps, head lamps
+            0xFFB3261E.toInt(), // tail lights
         )
 
     const val COLS = 8
@@ -79,6 +89,9 @@ internal object Palette {
     private val SHADES = floatArrayOf(1.0f, 0.86f, 0.68f)
 
     fun argb(color: Int): Int = COLORS[color]
+
+    val count: Int
+        get() = COLORS.size
 
     fun atlas(): Bitmap {
         val w = COLS * 3 * BLOCK
@@ -166,7 +179,7 @@ internal class Toon(capacity: Int = 1024) {
         b.tri(b.vertex(pa, nrm, uv), b.vertex(pb, nrm, uv), b.vertex(pc, nrm, uv))
     }
 
-    /** Axis-aligned box from [min] to [max] (local), all six faces. */
+    /** Axis-aligned box from [min] to [max] (local), all six faces: buildings, fence rails, cabin panels and road paint only (ui-audit §18). */
     fun box(color: Int, min: Vec3, max: Vec3, top: Int = color, bottom: Boolean = false) {
         val (x0, y0, z0) = Triple(min.x, min.y, min.z)
         val (x1, y1, z1) = Triple(max.x, max.y, max.z)

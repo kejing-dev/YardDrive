@@ -15,12 +15,11 @@ data class Settings(
     /** Gate B: "strict" (any mid-way stop fails), default off. */
     val strict: Boolean = false,
     /** Gate B: the translucent coach's hand in demos, default on, can be switched off. */
-    val coachHand: Boolean = true,
-    val hands: Boolean = false,
-    /** Gate B: hand throttle defaults to tap Go / Stop; true = hold a left-hand pinch. */
-    val pinchHold: Boolean = false,
     val gazeDot: Boolean = false,
-    val volume: Int = 1,
+    /** Percent, profile B20: master + two groups, each with three snap stops (Synth.STOPS). */
+    val master: Int = 100,
+    val carVol: Int = 100,
+    val cueVol: Int = 100,
     val muted: Boolean = false,
 ) {
     val eyeH: Double get() = Car.EYE_HEIGHTS[seat.coerceIn(0, 2)]

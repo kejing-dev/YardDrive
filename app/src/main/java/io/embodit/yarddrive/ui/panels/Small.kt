@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -26,7 +27,7 @@ import io.embodit.yarddrive.domain.Car
 import io.embodit.yarddrive.domain.Copy
 import io.embodit.yarddrive.domain.LookPoints
 import io.embodit.yarddrive.domain.Mirrors
-import io.embodit.yarddrive.domain.Mode
+import io.embodit.yarddrive.domain.MrdReadout
 import io.embodit.yarddrive.domain.SegId
 import io.embodit.yarddrive.ui.Screen
 import io.embodit.yarddrive.ui.YdUiState
@@ -36,8 +37,6 @@ import io.embodit.yarddrive.ui.theme.YdType
 import java.util.Locale
 import kotlin.math.abs
 
-private fun turns(w: Double): String = String.format(Locale.US, "%.1f", abs(w) / 360.0)
-
 /** HUB: the wheel's turn count on the hub (design HUB, Ø160 dp at scale 0.6). Upright whatever the wheel does. */
 @Composable
 internal fun HubPanel(state: YdUiState?) {
@@ -45,51 +44,61 @@ internal fun HubPanel(state: YdUiState?) {
         if (state == null) return@Glass
         val w = state.run.wheel
         val lock = abs(w) >= Car.WHEEL_MAX - 1
-        val (txt, color) = when {
-            abs(w) < 15 -> state.t(Copy.hubCentred) to PicoTheme.colorScheme.labelPrimary
-            w < 0 -> state.f(Copy.hubLeft, turns(w)) to YdColors.Left
-            else -> state.f(Copy.hubRight, turns(w)) to YdColors.Right
-        }
+        val txt = MrdReadout.turnsText(w, state.zh)
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Tag(txt, "hubTurns", YdType.hub.copy(fontSize = if (state.zh) YdType.hub.fontSize else YdType.hub.fontSize * 0.72f), if (abs(w) < 15) null else color)
+            Tag(txt, "hubTurns", YdType.hub.copy(fontSize = if (state.zh) YdType.hub.fontSize else YdType.hub.fontSize * 0.72f), if (abs(w) < MrdReadout.CENTRED_DEG) null else if (w < 0) YdColors.Left else YdColors.Right)
             Line(state.t(if (lock) Copy.hubLock else Copy.hubWheel), "hubSub", YdType.small)
         }
     }
 }
 
-/** MRD-L / MRD-R: by each side mirror, the corner gap (look-ahead) and the turns; in the library, the chant offset. */
+/**
+ * One line where you are looking: "look straight ahead" with its countdown while the car is being placed (profile D29), or,
+ * on S01, which way the panel went when it is out of view (R5, D1).
+ */
+@Composable
+internal fun HintPanel(state: YdUiState?) {
+    Glass(PanelSizes.HINT_W, PanelSizes.HINT_H, shape = RoundedCornerShape(20.dp), padding = 12.dp) {
+        if (state == null) return@Glass
+        val text = when {
+            state.reseating -> state.f(Copy.lookAhead, state.lookLeftS)
+            state.panelAway < 0 -> state.t(Copy.panelLeft)
+            state.panelAway > 0 -> state.t(Copy.panelRight)
+            else -> return@Glass
+        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Line(text, "hint", YdType.headline) }
+    }
+}
+
+/**
+ * MRD-L / MRD-R: by each side mirror, the corner gap (look-ahead, its side's segment) and the turns, one per line, centred;
+ * in the library the chant offset, or at a point with no chant the same two as a run at that truth pose (profile D38).
+ */
 @Composable
 internal fun MrdPanel(state: YdUiState?, left: Boolean) {
-    Glass(PanelSizes.MRD_W, PanelSizes.MRD_H, shape = RoundedCornerShape(16.dp), padding = 6.dp) {
+    val value = if (left) YdType.mrd else YdType.mrdR
+    val chant = if (left) YdType.mrd.copy(fontSize = YdType.mrd.fontSize * 0.8f) else YdType.mrdR
+    Glass(if (left) PanelSizes.MRD_W else PanelSizes.MRD_R_W, if (left) PanelSizes.MRD_H else PanelSizes.MRD_R_H, shape = RoundedCornerShape(16.dp), padding = 6.dp, paddingV = if (left) 2.dp else 4.dp) {
         if (state == null) return@Glass
         val r = state.run
-        if (state.screen == Screen.POINT) {
-            // the library: the chant offset for this seat, full width
-            val id = "LP${state.lp}"
-            val cm = LookPoints.chantLateCm(id, state.settings.eyeH)
-            val t = if (cm == null) state.t(Copy.hubWheel) + " · " + state.t(Copy.hubCentred) else if (state.zh) String.format(Copy.mrdChant.zh, if (cm < 0) "早" else "晚", abs(cm)) else String.format(Copy.mrdChant.en, abs(cm), if (cm < 0) "early" else "late")
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Line(t, "mrdChant", YdType.mrd.copy(fontSize = YdType.mrd.fontSize * 0.8f)) }
-            return@Glass
-        }
-        Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(modifier = Modifier.weight(1.15f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                run {
-                    val seg = r.segs.getOrNull(r.segIndex)
-                    val mine = if (left) seg == SegId.III else seg == SegId.I
-                    val g = if (left) r.gapL else r.gapR
-                    if (mine && r.mode != Mode.MOCK && g != null) {
-                        Column {
-                            Line(state.t(Copy.corner), "mrdCornerLabel", YdType.small.copy(fontSize = YdType.small.fontSize * 0.85f))
-                            Tag(String.format(Locale.US, "%.2f m", g), "mrdCorner", YdType.mrd, if (g < 0.10) YdColors.Warn else null)
-                        }
-                    }
+        val c =
+            if (state.screen == Screen.POINT) MrdReadout.library(LookPoints.byN(state.lp), left, state.settings.eyeH, r.wheel)
+            else MrdReadout.driving(left, r.segs.getOrNull(r.segIndex), r.mode, r.gapL, r.gapR, r.wheel)
+        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            val cm = c.chantCm
+            if (cm != null) {
+                val t = if (state.zh) String.format(Copy.mrdChant.zh, if (cm < 0) "早" else "晚", abs(cm)) else String.format(Locale.US, Copy.mrdChant.en, abs(cm), if (cm < 0) "early" else "late")
+                Line(t, "mrdChant", chant)
+                return@Column
+            }
+            c.gap?.let { g ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Line(state.t(Copy.corner), "mrdCornerLabel", value)
+                    Tag(String.format(Locale.US, "%.2f m", g), "mrdCorner", value, if (g < 0.10) YdColors.Warn else null, padV = 0.dp)
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Line(state.t(Copy.turns), "mrdTurnsLabel", YdType.small.copy(fontSize = YdType.small.fontSize * 0.85f))
-                val w = r.wheel
-                Tag(if (abs(w) < 15) state.t(Copy.hubCentred) else (if (w < 0) "L " else "R ") + turns(w), "mrdTurns", YdType.mrd, if (abs(w) < 15) null else if (w < 0) YdColors.Left else YdColors.Right)
-            }
+            val w = c.wheel
+            Tag(MrdReadout.turnsText(w, state.zh), "mrdTurns", value, if (abs(w) < MrdReadout.CENTRED_DEG) null else if (w < 0) YdColors.Left else YdColors.Right, padV = 0.dp)
         }
     }
 }
@@ -99,7 +108,8 @@ internal fun MrdPanel(state: YdUiState?, left: Boolean) {
 internal fun MirrorPanel(pic: Mirrors.Picture?, wide: Boolean) {
     val w = if (wide) PanelSizes.MIRI_W else PanelSizes.MIR_W
     val h = if (wide) PanelSizes.MIRI_H else PanelSizes.MIR_H
-    Box(modifier = Modifier.size(w.dp, h.dp).background(YdColors.Asphalt, RoundedCornerShape(if (wide) 10.dp else 18.dp))) {
+    // clipped: when the mirror is tipped up the sky reaches its top corners, and they have to stay round as well
+    Box(modifier = Modifier.size(w.dp, h.dp).clip(RoundedCornerShape(if (wide) 10.dp else 18.dp)).background(YdColors.Asphalt)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val sw = size.width
             val sh = size.height

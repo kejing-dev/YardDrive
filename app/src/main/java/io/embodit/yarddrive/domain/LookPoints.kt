@@ -3,7 +3,7 @@ package io.embodit.yarddrive.domain
 import kotlin.math.roundToInt
 
 /** One look-point (design yard.lookPoints): where the car is, which mirror to look at, which segment it belongs to. */
-data class LookPoint(val id: String, val n: Int, val seg: SegId, val pose: Pose, val wheel: Double, val gear: Gear, val look: Look)
+data class LookPoint(val id: String, val n: Int, val seg: SegId, val pose: Pose, val wheel: Double, val gear: Gear, val look: Look, val cornerGap: Double? = null)
 
 /**
  * The twelve look-points. Their poses are the design's truth poses, taken from one run of the ideal script through the
@@ -52,7 +52,18 @@ object LookPoints {
             if (run.seg == SegId.I && d >= 45 && "LP3" !in got) put("LP3", SegId.I)
             if (run.seg == SegId.III && d <= 135 && "LP10" !in got) put("LP10", SegId.III)
         }
-        return (1..12).mapNotNull { got["LP$it"] }
+        return (1..12).mapNotNull { got["LP$it"] }.map { it.copy(cornerGap = cornerGapAt(it)) }
+    }
+
+    /**
+     * The corner gap a run shows at this point: the look-ahead from its truth pose and wheel, as the running MRD reads it
+     * (YdController.publish). Null outside the bay-in segments, past the corner, and where the chant takes the panel.
+     */
+    private fun cornerGapAt(lp: LookPoint): Double? {
+        if (!lp.seg.bayIn || chantLateCm(lp.id, Car.EYE_HEIGHTS[1]) != null) return null
+        val r = Run(RunConfig(mode = Mode.LESSON, segments = listOf(lp.seg), start = lp.pose, startGear = lp.gear))
+        r.place(lp.pose, lp.wheel)
+        return Predictor.predict(r.sim.copy(), lp.seg, 0.0).hold.gapCorner.takeIf { it < 8 }
     }
 
     /**

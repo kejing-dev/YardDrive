@@ -33,12 +33,12 @@ class DriveSim(start: Pose) {
     /** Joystick rate, degrees per second (+ right). */
     var stickRate = 0.0
 
-    /** A hand (controller grip / pinch) holds the wheel: its angle is set directly. */
-    var grabbed = false
-
-    /** Hold-to-go (A key / Go). */
+    /** Go / Stop (P2 key, A key: a tap each). */
     var go = false
     var vSet = Car.SPEED_DEFAULT
+
+    /** Where the car is on its start / stop curve, 0..1. */
+    private var ramp = 0.0
 
     /** Current speed magnitude, m/s (>= 0); the direction follows the gear. */
     var v = 0.0
@@ -63,6 +63,7 @@ class DriveSim(start: Pose) {
         z = p.z
         psi = p.psi
         v = 0.0
+        ramp = 0.0
         stepLeft = 0.0
         go = false
         wheel = wheelDeg
@@ -76,7 +77,7 @@ class DriveSim(start: Pose) {
         wheelRate = rate
     }
 
-    /** The grabbed wheel at an absolute angle (hand moved it). */
+    /** The wheel at an absolute angle (joystick, debug). */
     fun setWheel(deg: Double) {
         wheel = deg.coerceIn(-Car.WHEEL_MAX, Car.WHEEL_MAX)
         wheelTarget = null
@@ -103,6 +104,9 @@ class DriveSim(start: Pose) {
     /** Tests and replay: set the speed directly (no ramp). */
     fun forceSpeed(speed: Double) {
         v = speed
+        // the point on the curve that gives this speed
+        val f = (speed / vSet).coerceIn(0.0, 1.0)
+        ramp = 0.5 - kotlin.math.sin(kotlin.math.asin(1 - 2 * f) / 3)
     }
 
     /** Integrates [dt] seconds in sub-steps of at most 5 ms. */
@@ -119,18 +123,16 @@ class DriveSim(start: Pose) {
         time += h
         // steering
         val t = wheelTarget
-        if (!grabbed) {
-            if (abs(stickRate) > 1e-6) {
+        if (abs(stickRate) > 1e-6) {
+            wheelTarget = null
+            wheel = (wheel + stickRate * h).coerceIn(-Car.WHEEL_MAX, Car.WHEEL_MAX)
+        } else if (t != null) {
+            val d = t - wheel
+            val m = wheelRate * h
+            if (abs(d) <= m) {
+                wheel = t
                 wheelTarget = null
-                wheel = (wheel + stickRate * h).coerceIn(-Car.WHEEL_MAX, Car.WHEEL_MAX)
-            } else if (t != null) {
-                val d = t - wheel
-                val m = wheelRate * h
-                if (abs(d) <= m) {
-                    wheel = t
-                    wheelTarget = null
-                } else wheel += sign(d) * m
-            }
+            } else wheel += sign(d) * m
         }
         // speed
         val dist: Double
@@ -143,12 +145,12 @@ class DriveSim(start: Pose) {
             if (stepLeft <= 1e-9) {
                 stepLeft = 0.0
                 v = 0.0
+                ramp = 0.0
             }
         } else {
-            val target = if (go) vSet else 0.0
-            v =
-                if (target > v) min(target, v + vSet / Car.ACCEL_S * h)
-                else maxOf(target, v - vSet / Car.DECEL_S * h)
+            // a smooth curve between stopped and rolling: no sudden start, no sudden stop (the user felt sick at 2.7 m/s²)
+            ramp = if (go) min(1.0, ramp + h / Car.ACCEL_S) else maxOf(0.0, ramp - h / Car.DECEL_S)
+            v = vSet * ramp * ramp * (3 - 2 * ramp)
             dist = v * h
         }
         if (dist <= 0) return
@@ -172,6 +174,7 @@ class DriveSim(start: Pose) {
             it.go = go
             it.vSet = vSet
             it.v = v
+            it.ramp = ramp
             it.stepLeft = stepLeft
         }
 

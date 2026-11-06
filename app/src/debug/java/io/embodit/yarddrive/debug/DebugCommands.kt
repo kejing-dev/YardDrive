@@ -23,6 +23,7 @@ import io.embodit.yarddrive.ui.Confirm
 import io.embodit.yarddrive.ui.Screen
 import io.embodit.yarddrive.ui.YdController
 import io.embodit.yarddrive.ui.YdEvent
+import io.embodit.yarddrive.ui.debug.Probe
 import io.embodit.yarddrive.ui.scene.ActiveScene
 
 /**
@@ -35,11 +36,15 @@ import io.embodit.yarddrive.ui.scene.ActiveScene
  *        [rules=lesson|exam] [t=s] [step-by-step=0|1] [line=bay-right|bay-left|back|road] [page=0|1|2] [confirm=exit]
  *   result outcome=pass|out|notin|timeout|order [page=0|1|2]     replay t=<s>
  *   script ideal|early:0.15|early:0.35|late:0.2                   (drives the current run like a user)
- *   go 0|1  step  gear R|D  steer <deg>  grab angle=<deg>|off   lock L|R|0 (P2 buttons)
+ *   go 0|1  go-tap (the Go key)  step  gear R|D  steer <deg>   lock L|R|0 (P2 buttons)
  *   free seed=<n> diff=1..3   seed-scores   clear-scores
- *   lang zh|en  seat low|mid|high  speed <m/s>  gap 1.5|1.8|2.0  hint 0|1  topview 0|1  poles 0|1  hands 0|1  strict 0|1
+ *   mirror <out>,<pitch>   lang zh|en  seat low|mid|high  speed <m/s>  gap 1.5|1.8|2.0  hint 0|1  topview 0|1  poles 0|1  strict 0|1
  *   gaze <yaw>,<pitch>|off   eye off|on   head <yaw>[,<pitch>]|off   lost 0|1
  *   pause | resume | home | back | quit (settings -> Quit app -> Quit) | exitask | dump | state
+ *   seated (the S01 button)  reseat (the P1 Re-seat key): the same placing flow as the real buttons
+ *   controls [P1] (logs each control's centre: panel pixels for adb shell input tap)  tour start|next|skip-rear (the P2 tour keys)
+ *   headoff <x>,<y>,<z>|off (head moved in the Stage, D20)   vignette <0..1>|off   vol master=<p> car=<p> cue=<p>
+ *   eye-ask <n>  turnon (the home "Turn on" key)
  */
 object DebugCommands {
     private val c = YdController
@@ -51,6 +56,12 @@ object DebugCommands {
     }
 
     private fun ev(e: YdEvent) = c.onEvent(e)
+
+    /** goto leaves the current page by Home, as a person would; half-way through a run Home asks first (D44), so say yes. */
+    private fun home() {
+        ev(YdEvent.Home)
+        if (c.state.value.confirm == Confirm.HOME) ev(YdEvent.ConfirmHome)
+    }
 
     private fun on(v: String?) = v == null || v == "1" || v == "on" || v == "true"
 
@@ -85,23 +96,24 @@ object DebugCommands {
             }
             "go" -> ev(YdEvent.Go(on(bare.firstOrNull())))
             "step" -> ev(YdEvent.StepOnce)
+            "go-tap" -> ev(YdEvent.GoToggle)
             "gear" -> ev(YdEvent.GearSet(if ((bare.firstOrNull() ?: "R").uppercase() == "D") Gear.D else Gear.R))
             "lock" -> ev(YdEvent.Steer(when ((bare.firstOrNull() ?: "0").uppercase()) { "L" -> -Car.WHEEL_MAX; "R" -> Car.WHEEL_MAX; else -> 0.0 }))
             "steer" -> c.debugRun().handWheel((bare.firstOrNull() ?: "0").toDouble())
-            "grab" -> ActiveScene.current?.debugGrab = if (bare.firstOrNull() == "off" || kv["angle"] == null && bare.isEmpty()) null else (kv["angle"] ?: bare.first()).toDouble()
             "free" -> { c.debugFree(kv["seed"]?.toInt() ?: 42, kv["diff"]?.toInt() ?: 2) }
             "seed-scores" -> c.debugSeedScores()
             "clear-scores" -> ev(YdEvent.ConfirmClear)
-            "lang" -> ev(YdEvent.SetSettings(st.settings.copy(zh = (bare.firstOrNull() ?: "zh") == "zh")))
+            "lang" -> ev(YdEvent.SetSettings { s -> s.copy(zh = (bare.firstOrNull() ?: "zh") == "zh") })
+            // the mirror sliders' values, for a picture; the real sliders are in tools/slider_check.sh
+            "mirror" -> bare.firstOrNull()?.split(',')?.let { v -> ev(YdEvent.SetSettings { s -> s.copy(mirrorOut = v[0].toInt(), mirrorPitch = v[1].toInt()) }) }
             "seat" -> ev(YdEvent.Seat(seatOf(bare.firstOrNull() ?: "mid")))
-            "speed" -> ev(YdEvent.SetSettings(st.settings.copy(speed = (bare.firstOrNull() ?: "0.8").toDouble())))
-            "gap" -> ev(YdEvent.SetSettings(st.settings.copy(gap = (bare.firstOrNull() ?: "1.8").toDouble())))
-            "hint" -> ev(YdEvent.SetSettings(st.settings.copy(hints = on(bare.firstOrNull()))))
-            "topview" -> ev(YdEvent.SetSettings(st.settings.copy(topView = on(bare.firstOrNull()))))
-            "poles" -> ev(YdEvent.SetSettings(st.settings.copy(poles = on(bare.firstOrNull()))))
-            "hands" -> ev(YdEvent.SetSettings(st.settings.copy(hands = on(bare.firstOrNull()))))
-            "strict" -> ev(YdEvent.SetSettings(st.settings.copy(strict = on(bare.firstOrNull()))))
-            "mute" -> ev(YdEvent.Mute)
+            "speed" -> ev(YdEvent.SetSettings { s -> s.copy(speed = (bare.firstOrNull() ?: "0.8").toDouble()) })
+            "gap" -> ev(YdEvent.SetSettings { s -> s.copy(gap = (bare.firstOrNull() ?: "1.8").toDouble()) })
+            "hint" -> ev(YdEvent.SetSettings { s -> s.copy(hints = on(bare.firstOrNull())) })
+            "topview" -> ev(YdEvent.SetSettings { s -> s.copy(topView = on(bare.firstOrNull())) })
+            "poles" -> ev(YdEvent.SetSettings { s -> s.copy(poles = on(bare.firstOrNull())) })
+            "strict" -> ev(YdEvent.SetSettings { s -> s.copy(strict = on(bare.firstOrNull())) })
+            "mute" -> when (bare.firstOrNull()) { "1" -> ev(YdEvent.SetSettings { s -> s.copy(muted = true) }); "0" -> ev(YdEvent.SetSettings { s -> s.copy(muted = false) }); else -> ev(YdEvent.Mute) }
             "gaze" -> {
                 val sc = ActiveScene.current
                 val a = bare.firstOrNull()
@@ -126,12 +138,42 @@ object DebugCommands {
                 val a = (bare.firstOrNull() ?: "0").split(',').map { it.toFloat() }
                 val sc = ActiveScene.current ?: return "no scene"
                 sc.debugHead = if (a[0] == 0f && a.size < 2) null else -a[0] to a.getOrElse(1) { 0f }
-                sc.debugView(a[0])
+                sc.debugView(a[0], a.getOrElse(1) { 0f })
             }
             "lost" -> forceLost(on(bare.firstOrNull()))
+            "seated" -> ev(YdEvent.Seated(reseat = st.seatedOnce))
+            "reseat" -> ev(YdEvent.Reseat)
+            "controls" -> Probe.controlsOf(bare.firstOrNull() ?: "P1").forEach { (n, b) -> YdLog.i(String.format(java.util.Locale.US, "CONTROL %s x=%.0f y=%.0f w=%.0f h=%.0f", n, b.cx, b.cy, b.w, b.h)) }
+            "tour" -> when (bare.firstOrNull() ?: "next") {
+                "start" -> ev(YdEvent.TourStart)
+                "skip-rear" -> ev(YdEvent.TourSkipRear)
+                else -> ev(YdEvent.TourNext)
+            }
+            "headoff" -> {
+                val a = bare.firstOrNull()
+                ActiveScene.current?.debugHeadOffset = if (a == null || a == "off") null else a.split(',').map { it.toFloat() }.let { Vec3(it[0], it[1], it[2]) }
+            }
+            "vignette" -> ActiveScene.current?.debugVignette = bare.firstOrNull()?.takeIf { it != "off" }?.toFloat()
+            "vol" -> ev(YdEvent.SetSettings { s -> s.copy(master = kv["master"]?.toInt() ?: st.settings.master, carVol = kv["car"]?.toInt() ?: st.settings.carVol, cueVol = kv["cue"]?.toInt() ?: st.settings.cueVol) })
+            "askclear" -> { ev(YdEvent.OpenScorecard); ev(YdEvent.AskClear) }
+            "flash-hold" -> c.debugFlashHold = on(bare.firstOrNull())
+            "eye-ask" -> c.debugEyeDenied((bare.firstOrNull() ?: "2").toInt())
+            "turnon" -> ev(YdEvent.TurnOnEye)
             "pause" -> ev(YdEvent.Pause)
             "resume" -> ev(YdEvent.Resume)
             "home" -> ev(YdEvent.Home)
+            "restart" -> ev(YdEvent.Restart)
+            // the pause page's confirm row (D44): yes / no, the same events as its two keys
+            "confirm" -> when (bare.firstOrNull() ?: "yes") {
+                "no", "0" -> ev(YdEvent.CancelConfirm)
+                else -> when (st.confirm) {
+                    Confirm.RESTART -> ev(YdEvent.ConfirmRestart)
+                    Confirm.HOME -> ev(YdEvent.ConfirmHome)
+                    Confirm.EXIT -> ev(YdEvent.Exit)
+                    Confirm.CLEAR -> ev(YdEvent.ConfirmClear)
+                    Confirm.NONE -> return "no confirm open"
+                }
+            }
             "back" -> ev(YdEvent.Back)
             "exitask" -> { ev(YdEvent.OpenSettings); ev(YdEvent.AskExit) }
             "quit" -> { ev(YdEvent.OpenSettings); ev(YdEvent.AskExit); ev(YdEvent.Exit) }
@@ -184,16 +226,16 @@ object DebugCommands {
 
     private fun goto(id: String, kv: Map<String, String>): String {
         kv["seat"]?.let { ev(YdEvent.Seat(seatOf(it))) }
-        kv["lang"]?.let { ev(YdEvent.SetSettings(c.state.value.settings.copy(zh = it == "zh"))) }
+        kv["lang"]?.let { ev(YdEvent.SetSettings { s -> s.copy(zh = it == "zh") }) }
         c.holdFinished = false
         when (id) {
             "S00" -> c.debugSet { it.copy(screen = Screen.LOADING, paused = false) }
-            "S01" -> { ev(YdEvent.Home); ev(YdEvent.Reseat) }
-            "S02" -> ev(YdEvent.Home)
-            "S03" -> { ev(YdEvent.Home); ev(YdEvent.OpenLessons) }
-            "S04" -> { ev(YdEvent.Home); ev(YdEvent.OpenLibrary); kv["lp"]?.let { ev(YdEvent.PickLp(it.toInt())) } }
+            "S01" -> { home(); c.debugSet { it.copy(screen = Screen.SIT, from = Screen.HOME) } }
+            "S02" -> home()
+            "S03" -> { home(); ev(YdEvent.OpenLessons) }
+            "S04" -> { home(); ev(YdEvent.OpenLibrary); kv["lp"]?.let { ev(YdEvent.PickLp(it.toInt())) } }
             "S05" -> {
-                ev(YdEvent.Home)
+                home()
                 val n = kv["lesson"]?.toInt() ?: 3
                 c.debugLesson(n)
                 ev(YdEvent.OpenLesson(n, demo = true))
@@ -230,7 +272,8 @@ object DebugCommands {
                     val t = kv["t"]?.toDouble() ?: 0.0
                     val exam = r.cfg.rules == Rules.EXAM
                     when (id) {
-                        "S08" -> r.debugHold(RunPhase.STOPPED, t, if (exam && t >= 2.0) 1 else 0, kv["clock"]?.toDouble() ?: 23.0)
+                        // as the judge would have it: a stop at the end of the segment is never charged (D31)
+                        "S08" -> r.debugHold(RunPhase.STOPPED, t, if (exam && t >= 2.0 && !Truth.atEnd(r.seg, r.pose, r.cfg.start)) 1 else 0, kv["clock"]?.toDouble() ?: 23.0)
                         else -> r.debugHold(RunPhase.DRIVING, 0.0, 0, kv["clock"]?.toDouble() ?: 23.0)
                     }
                     if (id == "S19") forceLost(true)
@@ -257,7 +300,7 @@ object DebugCommands {
                 c.debugAdvance(150.0)
                 c.debugAutopilotSet(null)
             }
-            "S12" -> { c.debugResult(outcomeOf(kv["outcome"] ?: "pass")); kv["page"]?.let { ev(YdEvent.ResultPage(it.toInt())) } }
+            "S12" -> { c.debugResult(outcomeOf(kv["outcome"] ?: "pass"), kv["stops"]?.toInt() ?: 0); kv["page"]?.let { ev(YdEvent.ResultPage(it.toInt())) } }
             "S13" -> exec("replay t=${kv["t"] ?: "6.5"}")
             "S14" -> {
                 ev(YdEvent.OpenMock)
@@ -268,11 +311,11 @@ object DebugCommands {
                 c.publish()
             }
             "S15" -> c.debugFree(kv["seed"]?.toInt() ?: 42, kv["diff"]?.toInt() ?: 3)
-            "S16" -> { if (kv["seed-scores"] == "1") c.debugSeedScores(); ev(YdEvent.Home); ev(YdEvent.OpenScorecard) }
-            "S17" -> { ev(YdEvent.Home); ev(YdEvent.OpenSettings); ev(YdEvent.SettingsPage(0)); kv["page"]?.let { ev(YdEvent.SettingsPage(it.toInt())) }; if (kv["confirm"] == "exit") ev(YdEvent.AskExit); if (kv["about"] == "1") ev(YdEvent.About) }
+            "S16" -> { if (kv["seed-scores"] == "1") c.debugSeedScores(); home(); ev(YdEvent.OpenScorecard) }
+            "S17" -> { home(); ev(YdEvent.OpenSettings); ev(YdEvent.SettingsPage(0)); kv["page"]?.let { ev(YdEvent.SettingsPage(it.toInt())) }; if (kv["confirm"] == "exit") ev(YdEvent.AskExit); if (kv["about"] == "1") ev(YdEvent.About) }
             "S18" -> { startRunFor(kv); c.debugRun().shift(Gear.R); ev(YdEvent.Pause) }
             "S20" -> ev(YdEvent.Blocked("debug"))
-            "S21" -> ev(YdEvent.SetSettings(c.state.value.settings.copy(zh = false)))
+            "S21" -> ev(YdEvent.SetSettings { s -> s.copy(zh = false) })
             "S22" -> { ActiveScene.current?.inputs?.eyeOff = true; c.debugSet { it.copy(eyeOff = true) } }
             "S23" -> {
                 startRunFor(kv + ("lesson" to (kv["lesson"] ?: "2")))
@@ -286,8 +329,7 @@ object DebugCommands {
                 }
                 c.publish()
             }
-            "S24" -> ev(YdEvent.SetSettings(c.state.value.settings.copy(hands = true)))
-            "S26" -> { c.debugLesson(1); ev(YdEvent.OpenLesson(1)); val step = kv["step"]?.toInt() ?: 0; if (step > 0) c.debugTour(step, kv["lp"]?.toInt() ?: 1) }
+            "S26" -> { c.debugLesson(1); ev(YdEvent.OpenLesson(1)); val step = kv["step"]?.toInt() ?: 0; if (step > 0) c.debugTour(step, kv["lp"]?.toInt() ?: 1, kv["line"]?.toInt() ?: 0) }
             else -> return "unknown state $id"
         }
         return "ok"

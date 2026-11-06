@@ -204,6 +204,27 @@ internal object Shapes {
         return b.build(name)
     }
 
+    /**
+     * A soft-edged ring: overlapping flat annuli, all out to 0.5, from each radius in [inners] (R4). Drawn with one
+     * transparent colour-only material, the opacity adds up step by step towards the outside; no texture (a transparent
+     * textured material stalls the 6.1 emulator's render thread).
+     */
+    fun softRing(name: String, inners: FloatArray, seg: Int = 48): MeshResource {
+        val b = MeshBuilder((seg + 1) * 2 * inners.size)
+        val n = Vec3(0f, 0f, 1f)
+        for ((k, inner) in inners.withIndex()) {
+            val base = b.vertexCount
+            val z = -0.0004f * k
+            for (i in 0..seg) {
+                val a = 2 * PI * i / seg
+                b.vertex(Vec3((inner * cos(a)).toFloat(), (inner * sin(a)).toFloat(), z), n)
+                b.vertex(Vec3((0.5 * cos(a)).toFloat(), (0.5 * sin(a)).toFloat(), z), n)
+            }
+            for (i in 0 until seg) b.quad(base + i * 2, base + i * 2 + 1, base + i * 2 + 3, base + i * 2 + 2)
+        }
+        return b.build(name)
+    }
+
     /** A unit cube centred on the origin. */
     fun cube(name: String): MeshResource = MeshResource.createBox(Vector3(1f, 1f, 1f), 0f)
 

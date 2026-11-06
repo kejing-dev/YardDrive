@@ -118,10 +118,10 @@ class DomainTest {
         assertEquals(JudgeLine.BAY_BACK, c.touch!!.line)
         // stopped short: nose -0.15 -> not in
         val d = Run(exam(false).copy(segments = listOf(SegId.I)))
-        d.sim.teleport(Pose.deg(0.0, 3.20, 90.0))
+        d.sim.teleport(Pose.deg(0.0, 2.90, 90.0))
         d.shift(Gear.R)
         d.setGo(true)
-        drive(d, null, 6.0) { r, t -> if (r.pose.z >= 3.30 - Truth.brake(0.8)) r.setGo(false) }
+        drive(d, null, 8.0) { r, t -> if (r.pose.z >= 3.30 - Truth.brake(r.sim.vSet)) r.setGo(false) }
         assertEquals(Outcome.NOTIN, d.outcome)
         // on the line centre: right side exactly at 1.15 -> not out
         val e = Run(exam(false).copy(segments = listOf(SegId.I)))
@@ -146,7 +146,7 @@ class DomainTest {
         assertEquals(0.35, r.nose[SegId.I]!!, 0.05)
         assertEquals(0.19, r.cornerGap[SegId.III]!!, 0.03)
         assertEquals(0.18, r.lineGap[SegId.III]!!, 0.03)
-        assertTrue("total ${r.elapsed}", r.elapsed <= 75.0)
+        assertTrue("total ${r.elapsed}", r.elapsed <= 100.0) // 0.5 m/s; the exam allows 210 s
         assertEquals(4, r.segOk.count { it })
     }
 
@@ -175,7 +175,7 @@ class DomainTest {
 
     @Test
     fun u5_earlyEaseOffThenIn() {
-        val pr = Predictor.predict(lockedAt(3.52 + 0.15), SegId.I, 0.0)
+        val pr = Predictor.predict(lockedAt(Truth.LOCK_I_X + 0.15), SegId.I, 0.0)
         assertFalse(pr.hold.ok)
         assertEquals(Predictor.Advice.EASE, pr.advice)
         // follow the advice: it gets in, centred, both gaps >= 0.10
@@ -196,7 +196,7 @@ class DomainTest {
 
     @Test
     fun u5_veryEarlyHoldIsOut() {
-        val pr = Predictor.predict(lockedAt(3.52 + 0.35), SegId.I, 0.0)
+        val pr = Predictor.predict(lockedAt(Truth.LOCK_I_X + 0.35), SegId.I, 0.0)
         assertTrue(pr.hold.out)
         // deviation (state.json): at +0.35 this model still finds an ease-off branch; the design says none does
         assertTrue(pr.advice == Predictor.Advice.EASE || pr.advice == Predictor.Advice.NO_WAY)
@@ -204,7 +204,7 @@ class DomainTest {
 
     @Test
     fun u5_lateClipsTheCorner() {
-        val pr = Predictor.predict(lockedAt(3.52 - 0.20), SegId.I, 0.0)
+        val pr = Predictor.predict(lockedAt(Truth.LOCK_I_X - 0.20), SegId.I, 0.0)
         assertEquals(Predictor.Advice.NO_WAY, pr.advice)
         // lesson rules: line touched (S10) with the reason sentence
         val run = Run(RunConfig(mode = Mode.LESSON, lesson = 6, rules = Rules.LESSON, segments = listOf(SegId.I)))
@@ -231,8 +231,9 @@ class DomainTest {
 
     @Test
     fun u6_midStops() {
-        assertEquals(1, stopFor(2.1).stops)
-        assertEquals(0, stopFor(1.9).stops)
+        // the 1 s stop curve, then the 2 s the judge counts from standing still
+        assertEquals(1, stopFor(2.9).stops)
+        assertEquals(0, stopFor(2.7).stops)
         assertEquals(0, stopFor(5.0, pause = true).stops)
         // step mode: stops do not count
         val st = Run(RunConfig(rules = Rules.LESSON, stepMode = true, segments = listOf(SegId.I)))
@@ -278,9 +279,9 @@ class DomainTest {
         assertEquals(3.53, LookPoints.chantLockX(1.20), 0.01)
         assertEquals(3.73, LookPoints.chantLockX(1.12), 0.01)
         assertEquals(3.34, LookPoints.chantLockX(1.28), 0.01)
-        assertEquals(-1, LookPoints.chantLateCm("LP2", 1.20))
-        assertEquals(-21, LookPoints.chantLateCm("LP2", 1.12))
-        assertEquals(18, LookPoints.chantLateCm("LP2", 1.28))
+        assertEquals(-8, LookPoints.chantLateCm("LP2", 1.20)) // -1 at 0.8 m/s: the truth moved, the mirror did not
+        assertEquals(-28, LookPoints.chantLateCm("LP2", 1.12))
+        assertEquals(11, LookPoints.chantLateCm("LP2", 1.28))
     }
 
     @Test
@@ -291,9 +292,9 @@ class DomainTest {
         assertEquals(0.03, LookPoints.chantOutZ(1.20), 0.01)
         assertEquals(-0.32, LookPoints.chantOutZ(1.12), 0.01)
         assertEquals(0.39, LookPoints.chantOutZ(1.28), 0.01)
-        assertEquals(82, LookPoints.chantLateCm("LP6", 1.20))
-        assertEquals(117, LookPoints.chantLateCm("LP6", 1.12))
-        assertEquals(46, LookPoints.chantLateCm("LP6", 1.28))
+        assertEquals(76, LookPoints.chantLateCm("LP6", 1.20))
+        assertEquals(111, LookPoints.chantLateCm("LP6", 1.12))
+        assertEquals(40, LookPoints.chantLateCm("LP6", 1.28))
         assertEquals(57, LookPoints.chantLateCm("LP5", 1.20))
     }
 
@@ -307,7 +308,7 @@ class DomainTest {
             var holdUntil = -1.0
             return drive(Run(exam()), Autopilot()) { r, t ->
                 if (holdUntil < 0 && k < at.size && r.seg == SegId.II && r.phase == RunPhase.DRIVING && r.pose.z <= at[k]) {
-                    holdUntil = t + 2.4
+                    holdUntil = t + 3.4
                     k++
                 }
                 if (holdUntil >= 0) {
@@ -349,7 +350,7 @@ class DomainTest {
         assertFalse(r.shift(Gear.D))
         assertEquals(Gear.R, r.sim.gear)
         r.setGo(false)
-        repeat(30) { r.tick(dt) }
+        repeat(60) { r.tick(dt) }
         assertTrue(r.shift(Gear.D))
         repeat(150) { r.tick(dt) }
         assertEquals(0, r.stops)
@@ -455,11 +456,39 @@ class DomainTest {
         while (at.x > Truth.LOCK_I_X) at.advance(0.005)
         val lock = Predictor.predict(at, SegId.I, 0.0).lock
         assertFalse(lock.out)
-        assertEquals(0.04, lock.end.x, 0.05)
+        assertEquals(LookPoints.byId("LP5")!!.pose.x, lock.end.x, 0.1)
         assertEquals(0.19, lock.gapCorner, 0.03)
     }
 
     // ---------------------------------------------------------------- look-points
+
+    /** The numbers the truth table holds are what the look-ahead finds at the default speed and ramps (0.5 m/s, 1 s; user, 2026-11-05). */
+    @Test
+    fun truthConstantsMatchTheDefaults() {
+        assertEquals(0.5, Car.SPEED_DEFAULT, 1e-9)
+        assertEquals(Truth.LOCK_I_X, Predictor.bestLock(Yard.rightStart(), vSet = Car.SPEED_DEFAULT), 0.03)
+        // the start and stop curves: never faster than a 1 s smoothstep (0.75 m/s²), no jump in speed, and it reaches the set speed
+        val s = DriveSim(Yard.rightStart())
+        s.gear = Gear.R
+        s.go = true
+        var last = 0.0
+        var peak = 0.0
+        repeat(240) {
+            s.advance(0.005)
+            peak = maxOf(peak, abs(s.v - last) / 0.005)
+            last = s.v
+        }
+        assertEquals(Car.SPEED_DEFAULT, s.v, 1e-9)
+        assertTrue("peak $peak m/s²", peak <= 0.76)
+        s.go = false
+        repeat(240) {
+            s.advance(0.005)
+            peak = maxOf(peak, abs(s.v - last) / 0.005)
+            last = s.v
+        }
+        assertEquals(0.0, s.v, 1e-9)
+        assertTrue("peak $peak m/s²", peak <= 0.76)
+    }
 
     @Test
     fun lookPointsAreTheTruthPoses() {
@@ -468,7 +497,7 @@ class DomainTest {
         assertEquals(Truth.LOCK_I_X, LookPoints.byId("LP2")!!.pose.x, 0.02)
         assertEquals(88.0, LookPoints.byId("LP4")!!.pose.psiDeg, 1.0)
         assertEquals(3.80, LookPoints.byId("LP5")!!.pose.z, 0.05)
-        assertEquals(0.85, LookPoints.byId("LP6")!!.pose.z, 0.02)
+        assertEquals(Truth.LOCK_OUT_Z, LookPoints.byId("LP6")!!.pose.z, 0.02)
         assertEquals(-Truth.LOCK_I_X, LookPoints.byId("LP9")!!.pose.x, 0.02)
         assertEquals(135.0, LookPoints.byId("LP10")!!.pose.psiDeg, 1.5)
         assertNull(LookPoints.chantLateCm("LP3", 1.2))

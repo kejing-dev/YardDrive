@@ -31,9 +31,23 @@ data class RunConfig(
     val lockX: Double = Truth.LOCK_I_X,
     val seed: Int = 0,
     val difficulty: Int = 0,
+    /** Free practice level 3: this run's seat (0..2); null = your own from the settings (profile D30). */
+    val seat: Int? = null,
 ) {
     val extra: Double get() = if (lenient) Yard.LENIENT_EXTRA else 0.0
     val lane: Boolean get() = segments.firstOrNull()?.isLane == true
+
+    /** Eye height of this run: its own seat if it has one, else the saved one. */
+    fun eyeH(s: Settings): Double = seat?.let { Car.EYE_HEIGHTS[it.coerceIn(0, 2)] } ?: s.eyeH
+}
+
+/**
+ * What the stop indicators show (profile D31): read from the judge, never a clock of their own. SETTLING / NOSE_OUT: the
+ * car is where the segment ends and nothing is being charged. TIMER: a mid-way stop is running up to 2 s. PENALTY: this
+ * stop has really been charged under test rules. NONE: nothing is being judged.
+ */
+data class StopView(val kind: Kind = Kind.NONE, val t: Double = 0.0, val left: Double = 0.0, val noseOutCm: Int = 0) {
+    enum class Kind { NONE, SETTLING, NOSE_OUT, TIMER, TIMER_AMBER, PENALTY }
 }
 
 /** One look-point hit: + = late, - = early, in cm (design cueTiming: the moment you start the action). */
@@ -104,6 +118,9 @@ class Run(val cfg: RunConfig) {
     var stoppedFor = 0.0
         private set
     private var stopCounted = false
+
+    /** This stop has been charged as a mid-way stop (stays until the car moves again). */
+    private var stopCharged = false
     var stops = 0
         private set
     var outcome: Outcome = Outcome.PASS
@@ -162,7 +179,7 @@ class Run(val cfg: RunConfig) {
     var noWayStreak = 0
         private set
 
-    /** How you last turned the wheel by hand (°/s), for the predictor (design: last grab's average rate). */
+    /** The turning rate the predictor assumes (°/s). */
     var userRate = Car.BUTTON_RATE
 
     /** Where you looked (gaze classes, 10 Hz counts), set by the controller. */
@@ -185,9 +202,26 @@ class Run(val cfg: RunConfig) {
     val pose: Pose get() = sim.pose
     val lockX: Double get() = cfg.lockX
     val rules: Rules get() = cfg.rules
-    val score: Int get() = 100 - 5 * stops
+
+    /** Mid-way stops cost points under test rules only; lesson rules note them (design lessonMode, profile D31). */
+    val score: Int get() = if (cfg.rules == Rules.EXAM) 100 - 5 * stops else 100
     val passed: Boolean get() = phase == RunPhase.FINISHED && outcome == Outcome.PASS && score >= 80 && !unscored
     val wrongGear: Boolean get() = phase == RunPhase.READY && sim.gear != seg.gear
+
+    /** The stop ring and the "settled" line read this (profile D31). */
+    val stopView: StopView
+        get() {
+            if (phase != RunPhase.STOPPED || stepMode || stoppedFor <= 0.05) return StopView()
+            if (Truth.atEnd(seg, pose, segStartPose)) {
+                val n = Truth.nose(pose)
+                return if (seg.bayIn && n < 0) StopView(StopView.Kind.NOSE_OUT, stoppedFor, (NOTIN_SETTLE_S - stoppedFor).coerceAtLeast(0.0), (-n * 100).roundToInt())
+                else StopView(StopView.Kind.SETTLING, stoppedFor, (SETTLE_S - stoppedFor).coerceAtLeast(0.0))
+            }
+            if (stopCharged && cfg.rules == Rules.EXAM) return StopView(StopView.Kind.PENALTY, stoppedFor)
+            // a stop that is not being timed (just after "back to the last point", "carry on", the next segment)
+            if (stopCounted && !stopCharged) return StopView()
+            return StopView(if (stoppedFor >= 1.0) StopView.Kind.TIMER_AMBER else StopView.Kind.TIMER, stoppedFor)
+        }
 
     // ------------------------------------------------------------------ inputs (the user, the autopilot and debug commands all use these)
 
@@ -213,12 +247,11 @@ class Run(val cfg: RunConfig) {
     /** P2 buttons / X key: lock or centre, 0.4 s ramp. The action time is the press (design U13). */
     fun steerButton(target: Double) {
         if (phase == RunPhase.FINISHED) return
-        sim.grabbed = false
         noteAction(target)
         sim.steerTo(target, Car.BUTTON_RATE)
     }
 
-    /** A hand on the wheel (grab, joystick, debug): the action time is when the wheel leaves the dead zone. */
+    /** The wheel set directly (joystick, debug): the action time is when the wheel leaves the dead zone. */
     fun handWheel(deg: Double) {
         val before = sim.wheel
         sim.setWheel(deg)
@@ -255,8 +288,8 @@ class Run(val cfg: RunConfig) {
         } else if (abs(target) < 1 && lockDone[i] && !straightDone[i]) {
             straightDone[i] = true
             val err = when (s) {
-                SegId.I, SegId.II -> p.psiDeg - Truth.straightenAt(s)
-                else -> Truth.straightenAt(s) - Angles.wrapDeg(p.psiDeg)
+                SegId.I, SegId.II -> p.psiDeg - Truth.straightenAt(s, sim.vSet)
+                else -> Truth.straightenAt(s, sim.vSet) - Angles.wrapDeg(p.psiDeg)
             }
             hits += Hit(s.straightLp, s, (Math.toRadians(err) * Car.R_FULL * 100).roundToInt(), Hit.Kind.STRAIGHTEN, elapsed)
         }
@@ -319,7 +352,7 @@ class Run(val cfg: RunConfig) {
         }
         val wheelBefore = sim.wheel
         sim.advance(dt)
-        if (!sim.grabbed && sim.stickRate != 0.0) detectManual(wheelBefore, sim.wheel)
+        if (sim.stickRate != 0.0) detectManual(wheelBefore, sim.wheel)
         if (cfg.lane) {
             if (abs(sim.wheel) >= Car.WHEEL_MAX - 1) sawLock = true
             if (sawLock && abs(sim.wheel) < 1) sawCentre = true
@@ -333,6 +366,7 @@ class Run(val cfg: RunConfig) {
             phase = RunPhase.DRIVING
             stoppedFor = 0.0
             stopCounted = false
+            stopCharged = false
         }
         trailClock += dt
         if (trailClock >= 0.1) {
@@ -357,6 +391,7 @@ class Run(val cfg: RunConfig) {
             if (atEnd && stoppedFor >= (if (noseOut) NOTIN_SETTLE_S else SETTLE_S) && !sim.go) segmentDone()
             else if (!atEnd && stoppedFor > MID_STOP_S && !stopCounted && !stepMode) {
                 stopCounted = true
+                stopCharged = true
                 stops++
                 events += RunEvent.MidStop(stops)
                 if (cfg.strict && cfg.rules == Rules.EXAM) fail(Outcome.STOP, null)
@@ -462,7 +497,7 @@ class Run(val cfg: RunConfig) {
             if (Truth.toLock(s, p, cfg.lockX) <= brake && sim.gear == s.gear) fire(s.lockLp, p)
         } else if (!straightDone[i]) {
             val brakeDeg = if (cfg.stepByStep) Math.toDegrees(brake / Car.R_FULL) else 0.0
-            if (Truth.toStraighten(s, p) <= brakeDeg) fire(s.straightLp, p)
+            if (Truth.toStraighten(s, p, sim.vSet) <= brakeDeg) fire(s.straightLp, p)
             // lesson rules: the look-ahead says no branch gets in -> stop now, before the line (design T9)
             val pr = prediction
             if (pr != null && s.bayIn && cfg.rules == Rules.LESSON && pr.seg == s && noWayStreak >= 2 && Truth.toStraighten(s, p) > 10) {
@@ -593,6 +628,8 @@ class Run(val cfg: RunConfig) {
         markMoved()
         phase = p
         stoppedFor = stoppedS
+        stopCharged = midStops > stops && stoppedS >= MID_STOP_S
+        stopCounted = stopCharged
         stops = midStops
         elapsed = elapsedS
         frozen = true
