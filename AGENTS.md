@@ -10,7 +10,7 @@ mirrors MIR-L / MIR-R 225×138 and MIR-I 325×88 (scale 1, opaque canvases). No 
 
 Design package (binding): `../../spatial-app-factory/apps/yard-drive/design-package.json` (r3, gate B passed with the four
 defaults: strict switch off, lessons 3-5 lenient +0.2 m, coach's hand in demos on, hand throttle tap Go / Stop; design r5 later dropped the hand, the wheel grab and pinch: steering is the P2 keys and the controller).
-Sample `../../spatial-app-factory/apps/yard-drive/sample.html`, PRD https://claude.ai/artifact/QHsiMqdtRLAcQ6NtCC89oh.
+Sample `../../spatial-app-factory/apps/yard-drive/sample.html`, PRD `../../spatial-app-factory/apps/yard-drive/html/prd.html`.
 Scaffold: `pico-cli project create --sdk-type spatial --template stage`; panel pool, head tracker, theme, fonts, debug
 receiver and tools ported from traffic-signals (same skeleton C, same machine). The design's primary reference
 (shoulder-check) is not on GitHub (kejing-dev has no ShoulderCheck repo, needsCheck N1): the cabin and mirrors were
